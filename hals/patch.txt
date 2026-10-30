@@ -1,0 +1,682 @@
+M: /config/vendor_file_contexts
+AL:
+/vendor/bin/hw/vendor\.aftersale\.hardware\.vivoasem@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.factory\.hardware\.vivoem@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.bbklog@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.bbkts@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.biometrics\.analysis-service-aidl u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.bspservice@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.capacity_key@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.configstore@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.digitalkey@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.e2eebase@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.eid@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.fido@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.lcmctl@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.omnipotentservice@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.sectee@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.sensorfactory-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.sensorfactory@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.tam@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.trust@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vcode@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vcustom@2\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vdtf@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vgnss@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vivodispcolor-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vmediametrics@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/bin/hw/vendor\.vivo\.hardware\.vperf@1\.0-service u:object_r:hal_allocator_default_exec:s0
+/vendor/etc/analysis_rule\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.aftersale\.hardware\.vivoasem@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.factory\.hardware\.vivoem@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.bbklog@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.bbkts@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.biometrics\.analysis-service-aidl\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.bspservice@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.capacity_key@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.configstore@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.digitalkey@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.e2eebase@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.eid@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.fido@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.lcmctl@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.omnipotentservice@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.sectee@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.sensorfactory-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.sensorfactory@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.tam@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.trust@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vcode@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vcustom@2\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vdtf@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vgnss@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vivodispcolor-default\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vmediametrics@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/init/vendor\.vivo\.hardware\.vperf@1\.0-service\.rc u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.bspservice@1\.0-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.e2eebase@1\.0-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.fido@1\.0-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.sensorfactory-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vintf/manifest/vendor\.vivo\.hardware\.vivodispcolor-service\.xml u:object_r:vendor_configs_file:s0
+/vendor/etc/vivo_config\.ini u:object_r:vendor_file:s0
+/vendor/lib/android\.hardware\.vibrator-V2-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.aftersale\.hardware\.vivoasem@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.factory\.hardware\.vivoem@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.bbklog@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.bbkts@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.capacity_key@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.configstore@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.eid@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.lcmctl@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.omnipotentservice@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.sensorfactory\.impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.sensorfactory@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.vdtf@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.vmediametrics@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/hw/vendor\.vivo\.hardware\.vperf@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/lib7z\.so u:object_r:vendor_file:s0
+/vendor/lib/libanalysis\.so u:object_r:vendor_file:s0
+/vendor/lib/libaudio-ftm\.so u:object_r:vendor_file:s0
+/vendor/lib/libbbkemsensor\.so u:object_r:vendor_file:s0
+/vendor/lib/libbootloader_message\.so u:object_r:vendor_file:s0
+/vendor/lib/libbsp_module\.so u:object_r:vendor_file:s0
+/vendor/lib/libbspservice_support\.so u:object_r:vendor_file:s0
+/vendor/lib/libiniparser\.so u:object_r:vendor_file:s0
+/vendor/lib/liblcmctlutils\.so u:object_r:vendor_file:s0
+/vendor/lib/libplatformfactory\.so u:object_r:vendor_file:s0
+/vendor/lib/libsensor_laser_ams_vendor\.so u:object_r:vendor_file:s0
+/vendor/lib/libstc-oem-HW-modulate\.so u:object_r:vendor_file:s0
+/vendor/lib/libvdtf\.so u:object_r:vendor_file:s0
+/vendor/lib/libvendorsensorhidl\.so u:object_r:vendor_file:s0
+/vendor/lib/libvivo-vperf-vendor-proxy\.so u:object_r:vendor_file:s0
+/vendor/lib/libvivo-vperfd-client\.so u:object_r:vendor_file:s0
+/vendor/lib/libvivo3rd_load\.so u:object_r:vendor_file:s0
+/vendor/lib/libvivofactory\.so u:object_r:vendor_file:s0
+/vendor/lib/libvivosensortest\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.aac\.hardware\.richtap\.vibrator-V3-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.aftersale\.hardware\.vivoasem@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.factory\.hardware\.vivoatcmd@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.factory\.hardware\.vivoem@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.bbklog@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.bbkts@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.biometrics\.analysis-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.bspservice-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.camera3rd\.context@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.camera3rd\.context@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.capacity_key@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.configstore@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.digitalkey@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.digitalkey@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.e2eebase-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.e2eebase@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.eid@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.fido-V2-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.fido@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.lcmctl@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.omnipotentservice@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.radio\.vivofactory-V1-ndk_platform\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.sectee@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.sectee@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.sectee@1\.0_ca\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.sensorfactory-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.sensorfactory@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.tam@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.tam@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.trust@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.trust@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vcode@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vcustom@2\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vcustom@2\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vdtf@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vmediametrics@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib/vendor\.vivo\.hardware\.vperf@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/android\.hardware\.vibrator-V2-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.aftersale\.hardware\.vivoasem@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.factory\.hardware\.vivoem@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.bbklog@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.bbkts@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.capacity_key@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.configstore@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.eid@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.lcmctl@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.omnipotentservice@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.sensorfactory\.impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.sensorfactory@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.vdtf@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.vmediametrics@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/hw/vendor\.vivo\.hardware\.vperf@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/lib7z\.so u:object_r:vendor_file:s0
+/vendor/lib64/libanalysis\.so u:object_r:vendor_file:s0
+/vendor/lib64/libaudio-ftm\.so u:object_r:vendor_file:s0
+/vendor/lib64/libbbkemsensor\.so u:object_r:vendor_file:s0
+/vendor/lib64/libbootloader_message\.so u:object_r:vendor_file:s0
+/vendor/lib64/libbpseedkeeper\.so u:object_r:vendor_file:s0
+/vendor/lib64/libbsp_module\.so u:object_r:vendor_file:s0
+/vendor/lib64/libbspservice_support\.so u:object_r:vendor_file:s0
+/vendor/lib64/libiniparser\.so u:object_r:vendor_file:s0
+/vendor/lib64/liblcmctlutils\.so u:object_r:vendor_file:s0
+/vendor/lib64/libplatformfactory\.so u:object_r:vendor_file:s0
+/vendor/lib64/libsensor_laser_ams_vendor\.so u:object_r:vendor_file:s0
+/vendor/lib64/libstc-oem-HW-modulate\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvas\.algoprovider\.impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvdtf\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvendorsensorhidl\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivo-vperf-vendor-proxy\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivo-vperfd-client\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivo3rd_load\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivo_codetools\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivofactory\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivolog\.so u:object_r:vendor_file:s0
+/vendor/lib64/libvivosensortest\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.aac\.hardware\.richtap\.vibrator-V3-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.aftersale\.hardware\.vivoasem@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.factory\.hardware\.vivoatcmd@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.factory\.hardware\.vivoem@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.bbklog@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.bbkts-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.bbkts@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.biometrics\.analysis-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.bspservice-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.camera3rd\.context@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.camera3rd\.context@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.camera3rd\.provider@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.capacity_key-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.capacity_key@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.configstore@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.digitalkey@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.digitalkey@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.e2eebase-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.e2eebase@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.eid@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.fido-V2-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.fido@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.lcmctl@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.omnipotentservice@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.radio\.vivofactory-V1-ndk_platform\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.sectee@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.sectee@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.sectee@1\.0_ca\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.sensorfactory-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.sensorfactory@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.tam@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.tam@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.trust@1\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.trust@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vcode@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vcustom@2\.0-impl\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vcustom@2\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vdtf@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vgnss@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vivoalgoservice-V2-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vivodispcolor-V1-ndk\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vmediametrics@1\.0\.so u:object_r:vendor_file:s0
+/vendor/lib64/vendor\.vivo\.hardware\.vperf@1\.0\.so u:object_r:vendor_file:s0
+/vendor/overlay/VivoFrameworksResRRO\.apk u:object_r:vendor_file:s0
+/vendor/overlay/VivoResRRO\.apk u:object_r:vendor_file:s0
+
+M: /config/vendor_fs_config
+AL:
+vendor/bin/hw/vendor.aftersale.hardware.vivoasem@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.factory.hardware.vivoem@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.bbklog@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.bbkts@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.biometrics.analysis-service-aidl 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.bspservice@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.camera3rd.provider@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.capacity_key@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.configstore@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.digitalkey@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.e2eebase@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.eid@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.fido@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.lcmctl@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.omnipotentservice@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.sectee@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.sensorfactory-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.sensorfactory@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.tam@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.trust@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vcode@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vcustom@2.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vdtf@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vgnss@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vivodispcolor-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vmediametrics@1.0-service 0 2000 0755
+vendor/bin/hw/vendor.vivo.hardware.vperf@1.0-service 0 2000 0755
+vendor/etc/analysis_rule.xml 0 0 0644
+vendor/etc/init/vendor.aftersale.hardware.vivoasem@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.factory.hardware.vivoem@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.bbklog@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.bbkts@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.biometrics.analysis-service-aidl.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.bspservice@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.camera3rd.provider@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.capacity_key@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.configstore@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.digitalkey@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.e2eebase@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.eid@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.fido@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.lcmctl@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.omnipotentservice@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.sectee@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.sensorfactory-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.sensorfactory@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.tam@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.trust@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vcode@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vcustom@2.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vdtf@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vgnss@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vivodispcolor-default.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vmediametrics@1.0-service.rc 0 0 0644
+vendor/etc/init/vendor.vivo.hardware.vperf@1.0-service.rc 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.bspservice@1.0-service.xml 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.camera3rd.provider@1.0-service.xml 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.e2eebase@1.0-service.xml 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.fido@1.0-service.xml 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.sensorfactory-service.xml 0 0 0644
+vendor/etc/vintf/manifest/vendor.vivo.hardware.vivodispcolor-service.xml 0 0 0644
+vendor/etc/vivo_config.ini 0 0 0644
+vendor/lib/android.hardware.vibrator-V2-ndk.so 0 0 0644
+vendor/lib/hw/vendor.aftersale.hardware.vivoasem@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.factory.hardware.vivoem@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.bbklog@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.bbkts@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.camera3rd.provider@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.capacity_key@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.configstore@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.eid@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.lcmctl@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.omnipotentservice@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.sensorfactory.impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.sensorfactory@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.vdtf@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.vmediametrics@1.0-impl.so 0 0 0644
+vendor/lib/hw/vendor.vivo.hardware.vperf@1.0-impl.so 0 0 0644
+vendor/lib/lib7z.so 0 0 0644
+vendor/lib/libanalysis.so 0 0 0644
+vendor/lib/libaudio-ftm.so 0 0 0644
+vendor/lib/libbbkemsensor.so 0 0 0644
+vendor/lib/libbootloader_message.so 0 0 0644
+vendor/lib/libbsp_module.so 0 0 0644
+vendor/lib/libbspservice_support.so 0 0 0644
+vendor/lib/libiniparser.so 0 0 0644
+vendor/lib/liblcmctlutils.so 0 0 0644
+vendor/lib/libplatformfactory.so 0 0 0644
+vendor/lib/libsensor_laser_ams_vendor.so 0 0 0644
+vendor/lib/libstc-oem-HW-modulate.so 0 0 0644
+vendor/lib/libvdtf.so 0 0 0644
+vendor/lib/libvendorsensorhidl.so 0 0 0644
+vendor/lib/libvivo-vperf-vendor-proxy.so 0 0 0644
+vendor/lib/libvivo-vperfd-client.so 0 0 0644
+vendor/lib/libvivo3rd_load.so 0 0 0644
+vendor/lib/libvivofactory.so 0 0 0644
+vendor/lib/libvivosensortest.so 0 0 0644
+vendor/lib/vendor.aac.hardware.richtap.vibrator-V3-ndk.so 0 0 0644
+vendor/lib/vendor.aftersale.hardware.vivoasem@1.0.so 0 0 0644
+vendor/lib/vendor.factory.hardware.vivoatcmd@1.0.so 0 0 0644
+vendor/lib/vendor.factory.hardware.vivoem@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.bbklog@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.bbkts@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.biometrics.analysis-V1-ndk.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.bspservice-V1-ndk.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.camera3rd.context@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.camera3rd.context@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.camera3rd.provider@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.capacity_key@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.configstore@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.digitalkey@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.digitalkey@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.e2eebase-V1-ndk.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.e2eebase@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.eid@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.fido-V2-ndk.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.fido@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.lcmctl@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.omnipotentservice@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.radio.vivofactory-V1-ndk_platform.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.sectee@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.sectee@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.sectee@1.0_ca.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.sensorfactory-V1-ndk.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.sensorfactory@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.tam@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.tam@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.trust@1.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.trust@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vcode@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vcustom@2.0-impl.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vcustom@2.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vdtf@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vmediametrics@1.0.so 0 0 0644
+vendor/lib/vendor.vivo.hardware.vperf@1.0.so 0 0 0644
+vendor/lib64/android.hardware.vibrator-V2-ndk.so 0 0 0644
+vendor/lib64/hw/vendor.aftersale.hardware.vivoasem@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.factory.hardware.vivoem@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.bbklog@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.bbkts@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.camera3rd.provider@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.capacity_key@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.configstore@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.eid@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.lcmctl@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.omnipotentservice@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.sensorfactory.impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.sensorfactory@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.vdtf@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.vmediametrics@1.0-impl.so 0 0 0644
+vendor/lib64/hw/vendor.vivo.hardware.vperf@1.0-impl.so 0 0 0644
+vendor/lib64/lib7z.so 0 0 0644
+vendor/lib64/libanalysis.so 0 0 0644
+vendor/lib64/libaudio-ftm.so 0 0 0644
+vendor/lib64/libbbkemsensor.so 0 0 0644
+vendor/lib64/libbootloader_message.so 0 0 0644
+vendor/lib64/libbpseedkeeper.so 0 0 0644
+vendor/lib64/libbsp_module.so 0 0 0644
+vendor/lib64/libbspservice_support.so 0 0 0644
+vendor/lib64/libiniparser.so 0 0 0644
+vendor/lib64/liblcmctlutils.so 0 0 0644
+vendor/lib64/libplatformfactory.so 0 0 0644
+vendor/lib64/libsensor_laser_ams_vendor.so 0 0 0644
+vendor/lib64/libstc-oem-HW-modulate.so 0 0 0644
+vendor/lib64/libvas.algoprovider.impl.so 0 0 0644
+vendor/lib64/libvdtf.so 0 0 0644
+vendor/lib64/libvendorsensorhidl.so 0 0 0644
+vendor/lib64/libvivo-vperf-vendor-proxy.so 0 0 0644
+vendor/lib64/libvivo-vperfd-client.so 0 0 0644
+vendor/lib64/libvivo3rd_load.so 0 0 0644
+vendor/lib64/libvivo_codetools.so 0 0 0644
+vendor/lib64/libvivofactory.so 0 0 0644
+vendor/lib64/libvivolog.so 0 0 0644
+vendor/lib64/libvivosensortest.so 0 0 0644
+vendor/lib64/vendor.aac.hardware.richtap.vibrator-V3-ndk.so 0 0 0644
+vendor/lib64/vendor.aftersale.hardware.vivoasem@1.0.so 0 0 0644
+vendor/lib64/vendor.factory.hardware.vivoatcmd@1.0.so 0 0 0644
+vendor/lib64/vendor.factory.hardware.vivoem@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.bbklog@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.bbkts-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.bbkts@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.biometrics.analysis-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.bspservice-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.camera3rd.context@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.camera3rd.context@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.camera3rd.provider@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.capacity_key-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.capacity_key@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.configstore@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.digitalkey@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.digitalkey@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.e2eebase-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.e2eebase@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.eid@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.fido-V2-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.fido@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.lcmctl@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.omnipotentservice@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.radio.vivofactory-V1-ndk_platform.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.sectee@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.sectee@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.sectee@1.0_ca.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.sensorfactory-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.sensorfactory@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.tam@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.tam@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.trust@1.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.trust@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vcode@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vcustom@2.0-impl.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vcustom@2.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vdtf@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vgnss@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vivoalgoservice-V2-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vivodispcolor-V1-ndk.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vmediametrics@1.0.so 0 0 0644
+vendor/lib64/vendor.vivo.hardware.vperf@1.0.so 0 0 0644
+vendor/overlay/VivoFrameworksResRRO.apk 0 0 0644
+vendor/overlay/VivoResRRO.apk 0 0 0644
+
+M: /vendor/etc/vintf/manifest_kalama.xml
+AX: a: <sepolicy>
+S:
+    <hal format="hidl">
+        <name>vendor.aftersale.hardware.vivoasem</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVivoASEm</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVivoASEm/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.factory.hardware.vivoem</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVivoEm</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVivoEm/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.bbklog</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IBbklog</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IBbklog/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.bbkts</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IBbkts</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IBbkts/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>vendor.vivo.hardware.biometrics.analysis</name>
+        <fqname>IAnalysis/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.capacity_key</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>ICapacityKey</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::ICapacityKey/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.configstore</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVivoConfigStore</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVivoConfigStore/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.digitalkey</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IDigitalkey</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IDigitalkey/default</fqname>
+    </hal>
+    <hal format="hidl" override="true">
+        <name>vendor.vivo.hardware.eid</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IEidDevice</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IEidDevice/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.lcmctl</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>ILcmCtl</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::ILcmCtl/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.omnipotentservice</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IOmnipotentService</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IOmnipotentService/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.sectee</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>ISecTee</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::ISecTee/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.tam</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>ITamNative</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::ITamNative/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.trust</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>ITrust</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::ITrust/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vcode</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IEventTransfer</name>
+            <instance>default</instance>
+        </interface>
+        <interface>
+            <name>IVcode</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IEventTransfer/default</fqname>
+        <fqname>@1.0::IVcode/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vcustom</name>
+        <transport>hwbinder</transport>
+        <version>2.0</version>
+        <interface>
+            <name>ICustom</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@2.0::ICustom/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vdtf</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVdtf</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVdtf/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vgnss</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVgnss</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVgnss/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vmediametrics</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVMediaMetrics</name>
+            <instance>default</instance>
+        </interface>
+        <interface>
+            <name>IVMediaMetricsTransfer</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVMediaMetrics/default</fqname>
+        <fqname>@1.0::IVMediaMetricsTransfer/default</fqname>
+    </hal>
+    <hal format="hidl">
+        <name>vendor.vivo.hardware.vperf</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IVPerf</name>
+            <instance>default</instance>
+        </interface>
+        <fqname>@1.0::IVPerf/default</fqname>
+    </hal>
+E:
+
+SP: "755" /vendor/bin/hw/vendor.aftersale.hardware.*
+SP: "755" /vendor/bin/hw/vendor.factory.hardware.*
+SP: "755" /vendor/bin/hw/vendor.vivo.hardware.*
+SP: "644" /vendor/etc/init/vendor.aftersale.hardware.*
+SP: "644" /vendor/etc/init/vendor.factory.hardware.*
+SP: "644" /vendor/etc/init/vendor.vivo.hardware.*
+SP: "644" /vendor/etc/vintf/manifest/*
+SP: "644" /vendor/etc/vivo_config.ini
+SP: "644" /vendor/etc/analysis_rule.xml
+SP: "644" /vendor/lib/hw/vendor.aftersale.hardware.*
+SP: "644" /vendor/lib/hw/vendor.factory.hardware.*
+SP: "644" /vendor/lib/hw/vendor.vivo.hardware.*
+SP: "644" /vendor/lib/android.hardware.*
+SP: "644" /vendor/lib/lib*
+SP: "644" /vendor/lib/vendor.aac.hardware.*
+SP: "644" /vendor/lib/vendor.aftersale.hardware.*
+SP: "644" /vendor/lib/vendor.factory.hardware.*
+SP: "644" /vendor/lib/vendor.vivo.hardware.*
+SP: "644" /vendor/lib64/hw/vendor.aftersale.hardware.*
+SP: "644" /vendor/lib64/hw/vendor.factory.hardware.*
+SP: "644" /vendor/lib64/hw/vendor.vivo.hardware.*
+SP: "644" /vendor/lib64/android.hardware.*
+SP: "644" /vendor/lib64/lib*
+SP: "644" /vendor/lib64/vendor.aac.hardware.*
+SP: "644" /vendor/lib64/vendor.aftersale.hardware.*
+SP: "644" /vendor/lib64/vendor.factory.hardware.*
+SP: "644" /vendor/lib64/vendor.vivo.hardware.*
+SP: "644" /vendor/overlay/VivoFrameworksResRRO.apk
+SP: "644" /vendor/overlay/VivoResRRO.apk

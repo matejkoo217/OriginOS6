@@ -1,0 +1,12 @@
+<manifest version="1.0" type="device" >
+    <!-- vivo xushuo add for e2ee start-->
+    <hal format="aidl">
+        <name>vendor.vivo.hardware.e2eebase</name>
+        <version>1</version>
+        <interface>
+            <name>IE2EEBase</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+    <!-- vivo xushuo add for e2ee end -->
+</manifest>

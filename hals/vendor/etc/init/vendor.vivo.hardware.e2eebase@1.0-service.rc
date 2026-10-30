@@ -1,0 +1,7 @@
+service e2eebase-1-0 /vendor/bin/hw/vendor.vivo.hardware.e2eebase@1.0-service
+    interface aidl vendor.vivo.hardware.e2eebase.IE2EEBase/default
+    class main
+    user  system
+    group system
+    disabled
+    oneshot

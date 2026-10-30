@@ -1,0 +1,18 @@
+on property:vendor.vivo.nfc.boot=1
+    enable vendor.nfc_hal_service
+on property:vendor.vivo.nfc.boot=2
+    enable vendor.nfc_hal_service
+on property:vendor.vivo.nfc.chip.type=SN220
+	setprop persist.vendor.vivo.nfc.chip.type SN220
+on property:vendor.vivo.nfc.chip.type=PN560
+	setprop persist.vendor.vivo.nfc.chip.type PN560
+on property:vendor.vivo.nfc.chip.type=SN110
+	setprop persist.vendor.vivo.nfc.chip.type SN110
+
+on property:vendor.vivo.nfc.halDead=1
+   restart vendor.nfc_hal_service
+service vendor.nfc_hal_service /vendor/bin/hw/android.hardware.nfc-service.nxp
+    class early_hal
+    disabled
+    user nfc
+    group nfc

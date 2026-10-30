@@ -1,0 +1,7 @@
+service trust-1-0 /vendor/bin/hw/vendor.vivo.hardware.trust@1.0-service
+    interface vendor.vivo.hardware.trust@1.0::ITrust default
+    class hal
+    user  system
+    group system
+    disabled
+    oneshot

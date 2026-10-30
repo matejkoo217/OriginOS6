@@ -1,0 +1,90 @@
+on early-init
+    setprop ro.vendor.defend.oem.name ${ro.vivo.oem.name}
+    setprop ro.vendor.defend.vgc.cust.name ${ro.vgc.cust.name}
+    setprop ro.vendor.defend.hardware.version ${ro.vivo.hardware.version}
+    setprop ro.vendor.defend.build.version.group ${ro.build.version.group}
+    setprop ro.vendor.defend.gmsversion ${ro.com.google.gmsversion}
+    setprop ro.vendor.defend.system.brand ${ro.product.system.brand}
+
+on early-fs
+    start bspservice-hal-1-0
+
+on post-fs-data
+    mkdir /data/vendor/bspservice 0770 system system
+
+on early-boot && property:ro.vivo.dyn.support=yes
+    setprop ro.vendor.defend.dyn.support ${ro.vivo.dyn.support}
+    setprop ro.vendor.defend.dyn.name ${ro.vivo.dyn.name}
+    setprop ro.vendor.defend.dyn.device.name ${ro.vivo.dyn.device.name}
+
+on property:persist.vendor.vivo.dyn.name=*
+    setprop persist.vivo.dyn.name ${persist.vendor.vivo.dyn.name}
+
+on early-boot && property:ro.vivo.vendor.dyn.support=yes
+    setprop ro.vendor.defend.vendor_dyn.support ${ro.vivo.vendor.dyn.support}
+    setprop ro.vendor.defend.vendor_dyn.name ${ro.vivo.vendor.dyn.name}
+
+on property:persist.vendor.vivo.vendor_dyn.name=*
+    setprop persist.vivo.vendor_dyn.name ${persist.vendor.vivo.vendor_dyn.name}
+
+service bspservice-hal-1-0 /vendor/bin/hw/vendor.vivo.hardware.bspservice@1.0-service
+    class early_hal
+    user root
+    critical
+    group root system everybody cache media_rw shell sdcard_rw sdcard_r drmrpc
+    disabled # don't start when early_hal
+    # reboot_on_failure reboot,bspservice-failed
+
+service mtk_bind_ids_service /vendor/bin/kmsetkey_ca -d
+    class early_hal
+    user root
+    group root system everybody cache media_rw shell sdcard_rw sdcard_r drmrpc
+    oneshot
+    disabled # don't start when early_hal
+
+service qcom_bind_ids_service /vendor/bin/KmInstallKeybox keybox dev1 true rkp
+    user root
+    group root system everybody cache media_rw shell sdcard_rw sdcard_r drmrpc
+    oneshot
+
+service qcom_bind_ids_service_strongbox /vendor/bin/KmInstallKeybox keybox dev1 true keybox dev1 true rkp
+    user root
+    group root system everybody cache media_rw shell sdcard_rw sdcard_r drmrpc
+    oneshot
+
+service unisoc_bind_ids_service /vendor/bin/production_test --mode write_attestation_ids
+    user root
+    group root system everybody cache media_rw shell sdcard_rw sdcard_r drmrpc
+    oneshot
+
+on property:ro.vendor.defend.mtk_need_bindids=yes
+    start mtk_bind_ids_service
+
+on property:ro.vendor.defend.qcom_need_bindids=yes
+    start qcom_bind_ids_service
+
+on property:ro.vendor.defend.qcom_need_bindids_strongbox=yes
+    start qcom_bind_ids_service_strongbox
+
+on property:ro.vendor.defend.unisoc_need_bindids=yes
+    start unisoc_bind_ids_service
+
+
+on property:vendor.oemcsr.mtk_need_bindids_oem=yes
+    start mtk_bind_ids_service
+
+on property:vendor.oemcsr.qcom_need_bindids_oem=yes
+    start qcom_bind_ids_service
+
+on property:vendor.oemcsr.qcom_need_bindids_strongbox_oem=yes
+    start qcom_bind_ids_service_strongbox
+
+on property:vendor.oemcsr.unisoc_need_bindids_oem=yes
+    start unisoc_bind_ids_service
+
+on property:vendor.oemcsr.switch_oem_csr=yes
+    setprop sys.vivo.oemcsr_brand ${vendor.oemcsr.brand}
+    setprop sys.vivo.oemcsr_device ${vendor.oemcsr.device}
+    setprop sys.vivo.oemcsr_name ${vendor.oemcsr.name}
+    setprop sys.vivo.oemcsr_manufacturer ${vendor.oemcsr.manufacturer}
+    setprop sys.vivo.oemcsr_model ${vendor.oemcsr.model}

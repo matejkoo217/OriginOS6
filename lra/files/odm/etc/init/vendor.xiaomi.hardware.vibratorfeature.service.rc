@@ -1,0 +1,23 @@
+on fs
+    chmod 0666 /sys/class/qcom-haptics/lra_calibration
+    chmod 0666 /sys/class/qcom-haptics/lra_impedance
+    mkdir /mnt/vendor/persist/haptics 0755 system system
+
+service vibratorfeature-hal-service /odm/bin/hw/vendor.xiaomi.hardware.vibratorfeature.service
+    class hal
+    user system
+    group system input audio
+    setenv RICHTAP_DEVICE_PATH /dev/vivo_haptic;/dev/vivo_haptic_vice
+    setenv ENV_RICHTAP_CONFIG_PATH /odm/etc/aac_richtap.config;/odm/etc/aac_richtap_1.config
+    onrestart restart vibratorfeature
+
+on boot
+    chmod 0666 /dev/vivo_haptic
+    chmod 0666 /dev/vivo_haptic_vice
+    chmod 0666 /dev/vivo_haptic_core
+    chown system system /dev/vivo_haptic
+    chown system system /dev/vivo_haptic_vice
+    chown system system /dev/vivo_haptic_core
+
+on property:sys.boot_completed=1
+    setprop vendor.haptic.calibrate.done 1

@@ -1,0 +1,10 @@
+-- main vbmeta has AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED (flags & 2): libavb loads ONLY this struct, chains are not followed
+partition                offset     size  source
+vbmeta_a                      0     2368  vbmeta.img  (avb 1.0, flags=0x3)
+
+count  = 1 vbmeta image(s) hashed
+sha_alg= sha256
+size   = 2368   (= androidboot.vbmeta.size)
+digest = bf0d3f331bed2166728c3edacb41c9061d564e0a63b100f86379e9392636b184
+
+androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=2368 androidboot.vbmeta.digest=bf0d3f331bed2166728c3edacb41c9061d564e0a63b100f86379e9392636b184

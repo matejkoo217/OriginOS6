@@ -1,0 +1,7 @@
+on post-fs-data
+    mkdir /data/vendor/panel_gamma 0777 system system
+service vendor.vivodispcolor-default /vendor/bin/hw/vendor.vivo.hardware.vivodispcolor-service
+    class hal
+    user system
+    group system
+    shutdown critical

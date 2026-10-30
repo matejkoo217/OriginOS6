@@ -1,0 +1,9 @@
+<manifest version="1.0" type="device">    
+<!-- vivo add for vivo algo service begin -->
+    <hal format="aidl">
+        <name>vendor.vivo.hardware.vivoalgoservice</name>
+        <version>2</version>
+        <fqname>IVASAlgoProvider/default</fqname>
+    </hal>
+    <!-- vivo add for vivo algo service end -->
+</manifest>

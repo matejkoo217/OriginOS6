@@ -1,0 +1,6 @@
+service hal_fido_service /vendor/bin/hw/vendor.vivo.hardware.fido@1.0-service
+    interface aidl vendor.vivo.hardware.fido.IFidoDaemon/default
+    class hal
+    user system
+    group system
+    disabled

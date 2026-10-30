@@ -1,0 +1,12 @@
+<manifest version="1.0" type="device" >
+    <!-- vivo yuhaichen add for fido begin -->
+    <hal format="aidl">
+      <name>vendor.vivo.hardware.fido</name>
+      <version>2</version>
+      <interface>
+          <name>IFidoDaemon</name>
+          <instance>default</instance>
+      </interface>
+    </hal>
+    <!-- vivo yuhaichen add for fido end -->
+</manifest>

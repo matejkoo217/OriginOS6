@@ -1,0 +1,21 @@
+service camera3rd-provider-1-0 /vendor/bin/hw/vendor.vivo.hardware.camera3rd.provider@1.0-service
+    class hal
+    user system
+    group system
+
+on post-fs-data
+    chmod 777 /data/vendor/camera
+    chmod 777 /persist/camera
+
+on post-fs
+    mkdir /dev/cpuctl/camera-snap
+    chown system system /dev/cpuctl/camera-snap
+    chown system system /dev/cpuctl/camera-snap/tasks
+    chown system system /dev/cpuctl/camera-snap/cgroup.procs
+    chown system system /dev/cpuctl/camera-snap/cpu.shares
+    chmod 0554 /dev/cpuctl/camera-snap
+    chmod 0664 /dev/cpuctl/camera-snap/tasks
+    chmod 0664 /dev/cpuctl/camera-snap/cgroup.procs
+    chmod 0664 /dev/cpuctl/camera-snap/cpu.shares
+
+    write /dev/cpuctl/camera-snap/cpu.shares 1024
