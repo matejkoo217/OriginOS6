@@ -26,3 +26,4 @@ resetprop
 /face/facehal
 init/avb/oemvgc.pem
 /vendor_dlkm/vivo_rsc/fuxi
+/boot/fuxi

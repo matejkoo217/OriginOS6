@@ -1,0 +1,6 @@
+#boot time fix, makes it boot faster by like 6s.
+on post-fs-data
+    mkdir /data/misc/installd 0700 root root
+    start installd
+
+#🐥 hello :D
