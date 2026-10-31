@@ -6,7 +6,7 @@
 |---|---|
 | `oled_hbm` (24/25/26/27/`0x20000000|level`) | → mi_disp `disp_param` feature 1 (hbm) |
 | `aod_bl_level`, `aod_disp_info` partial flags | → mi_disp feature 3 (doze brightness) |
-| **`aod_disp_info` `support_full_screen`** | selects SystemUI's AOD transition path, which decides the AOD refresh rate: `1` → FixRate "6 pulse" at **120 Hz** (fuxi has no `0x2000` config, so AOD idles at 120), `3` → LH30 path (only writes `full_aod_on`, kernel is expected to switch the panel — the winning request drops to 60 but RRM keeps the last config in doze), **`4` → LTPS path, acquires "LtpsFullAodTransition to switch 60hz", so AOD actually runs at 60 Hz**. `support_1hz=0` only says the panel has no 1 Hz mode |
+| **`aod_disp_info` capabilities** | the string is parsed with `String.contains()` by several stacks, so it advertises both full-AOD values: `support_full_screen=3` (nightpearl only offers the "Full-screen AOD" option for `1|2|3`, and `=3` also makes SystemUI's `writeFullAodMode()` succeed, which suppresses the 120 Hz "6 pulse" FixRate) and `support_full_screen=4` (LTPS path → `LtpsFullAodTransition to switch 60hz`, so full-screen AOD really runs at 60 Hz). `support_1hz=0` (no 1 Hz mode). `aod_brightness=21` = fuxi's DT `mi,doze-lbm-dbv-level` (vivo's 324 is only FaceUI's fallback); nightpearl writes this verbatim to `aod_bl_level`, so never 0 |
 | `refresh_monitor` | mirrors `dynamic_fps` (`120`) |
 | `lcm_fps` | → `fps=<n>Hz` from `dynamic_fps` |
 | **`hbm_max_brightness`** | **read from `panel0-backlight/max_brightness` (4095)**; a userspace write overrides it |

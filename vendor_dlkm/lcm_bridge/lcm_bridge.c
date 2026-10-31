@@ -114,9 +114,13 @@ static char ltpo_mode_val[LCM_BUF_MAX] = "high_te=240,ltpo_min_fps=60";
 static char ltpo_cmd_val[LCM_BUF_MAX] = "";
 static char hbm_max_brightness_val[LCM_BUF_MAX] = "";
 static char panel_info_val[LCM_BUF_MAX] = "local_hbm=true";
+// having 2x support_full_screen isnt bug, its deliberate fix, not sure how its done on origin os 7,
+// but here nightpearl only accepts 1-3 as enabled, but SF uses 4 for ltpo refresh change that makes 
+// aod refresh rate be 60 becouse we set ltpo_min_fps instead of 120 on 1-3.
 static char aod_disp_info_val[LCM_BUF_MAX] =
-	"support_1hz=0,aod_brightness=324,support_video_aod=0,"
-	"support_full_screen=4,fp_1hz_enable=0";
+	"support_1hz=0,aod_brightness=21,support_video_aod=0,"
+	"support_full_screen=3,support_full_screen=4,fp_1hz_enable=0," 
+	"full_screen_enable=0";
 static char oled_hbm_val[LCM_BUF_MAX] = "0";
 static char bl_level_val[LCM_BUF_MAX] = "0";
 static char aod_bl_level_val[LCM_BUF_MAX] = "0";
