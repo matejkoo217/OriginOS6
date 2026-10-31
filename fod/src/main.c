@@ -383,7 +383,14 @@ static void session_feed_line(const char *line, int announce) {
         session_set_state(1, "HAL authenticate", announce);
         return;
     }
+    if (strstr(line, "mfp_service enroll")) {
+        g_session_last_marker_us = ts;
+        g_seed_seen_marker = 1;
+        session_set_state(1, "HAL enroll", announce);
+        return;
+    }
     if (strstr(line, "auth:enter idle status") ||
+        strstr(line, "enroll:enter idle status") ||
         strstr(line, "On Error Canceled,enter idle status")) {
         g_session_last_marker_us = ts;
         g_seed_seen_marker = 1;
