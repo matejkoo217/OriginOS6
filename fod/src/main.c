@@ -319,6 +319,9 @@ static void session_invalidate(const char *why, int announce) {
         LOGI("FOD session state unknown (%s)", why);
 }
 #define SESSION_SEED_MAX_AGE_US (120ULL * 1000000ULL)
+enum { SESSION_NONE = 0, SESSION_AUTH, SESSION_ENROLL };
+static int g_session_kind = SESSION_NONE;
+
 static uint64_t g_session_last_marker_us = 0;
 static int g_seed_seen_marker = 0;
 static uint64_t realtime_us(void) {
@@ -377,24 +380,36 @@ static uint64_t session_line_epoch_us(const char *line) {
 }
 static void session_feed_line(const char *line, int announce) {
     uint64_t ts = session_line_epoch_us(line);
+    if (strstr(line, "auth:enter idle status") ||
+        strstr(line, "enroll:enter idle status") ||
+        strstr(line, "On Error Canceled,enter idle status")) {
+        g_session_kind = SESSION_NONE;
+        g_session_last_marker_us = ts;
+        g_seed_seen_marker = 1;
+        session_set_state(0, "HAL idle", announce);
+        return;
+    }
     if (strstr(line, "start authenticate")) {
+        g_session_kind = SESSION_AUTH;
         g_session_last_marker_us = ts;
         g_seed_seen_marker = 1;
         session_set_state(1, "HAL authenticate", announce);
         return;
     }
     if (strstr(line, "mfp_service enroll")) {
+        g_session_kind = SESSION_ENROLL;
         g_session_last_marker_us = ts;
         g_seed_seen_marker = 1;
         session_set_state(1, "HAL enroll", announce);
         return;
     }
-    if (strstr(line, "auth:enter idle status") ||
-        strstr(line, "enroll:enter idle status") ||
-        strstr(line, "On Error Canceled,enter idle status")) {
-        g_session_last_marker_us = ts;
-        g_seed_seen_marker = 1;
-        session_set_state(0, "HAL idle", announce);
+    if (strstr(line, "mfp_service onError")) {
+        if (g_session_kind == SESSION_AUTH) {
+            g_session_kind = SESSION_NONE;
+            g_session_last_marker_us = ts;
+            g_seed_seen_marker = 1;
+            session_set_state(0, "HAL error", announce);
+        }
         return;
     }
     if (strstr(line, "HAL initialized successfully") ||
