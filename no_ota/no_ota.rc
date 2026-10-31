@@ -1,0 +1,6 @@
+on property:sys.boot_completed=1
+    exec - root root -- /system/bin/settings put global vivo_update_auto_download -11
+    exec - root root -- /system/bin/settings put global vivo_update_intelligent_installation 0
+    exec - root root -- /system/bin/settings put global ota_disable_automatic_update 1
+    exec - root root -- /system/bin/pm disable-user --user 0 com.bbk.updater
+    stop update_engine

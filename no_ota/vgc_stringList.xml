@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <list name="pm_block_core_apps_list">
+        <item value="com.vivo.daemonService"/>
+        <item value="com.vivo.cota"/>
+    </list>
+    <list name="pm_block_disable_component_all_list">
+        <item value="com.vivo.daemonService"/>
+        <item value="com.vivo.cota"/>
+    </list>
+</config>
