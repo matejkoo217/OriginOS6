@@ -1,5 +1,6 @@
 M: /config/vendor_file_contexts
 AL:
+/vendor/etc/vcodec_config\.xml u:object_r:vendor_configs_file:s0
 /vendor/bin/hw/vendor\.aftersale\.hardware\.vivoasem@1\.0-service u:object_r:hal_allocator_default_exec:s0
 /vendor/bin/hw/vendor\.factory\.hardware\.vivoem@1\.0-service u:object_r:hal_allocator_default_exec:s0
 /vendor/bin/hw/vendor\.vivo\.hardware\.bbklog@1\.0-service u:object_r:hal_allocator_default_exec:s0
@@ -579,20 +580,9 @@ S:
         </interface>
         <fqname>@1.0::ITrust/default</fqname>
     </hal>
-    <hal format="hidl">
+    <hal format="aidl">
         <name>vendor.vivo.hardware.vcode</name>
-        <transport>hwbinder</transport>
-        <version>1.0</version>
-        <interface>
-            <name>IEventTransfer</name>
-            <instance>default</instance>
-        </interface>
-        <interface>
-            <name>IVcode</name>
-            <instance>default</instance>
-        </interface>
-        <fqname>@1.0::IEventTransfer/default</fqname>
-        <fqname>@1.0::IVcode/default</fqname>
+        <fqname>IVcode/default</fqname>
     </hal>
     <hal format="hidl">
         <name>vendor.vivo.hardware.vcustom</name>

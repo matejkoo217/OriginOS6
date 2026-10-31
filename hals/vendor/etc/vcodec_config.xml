@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VCodecCfg>
+	<Package name="jp.naver.line.android">
+		<Limit name="priority" value="1" />
+		<Resolution min="1920x1080" />
+	</Package>
+	<Package name="com.apowersoft.mirror">
+		<Limit name="bitrate" value="10000000" />
+		<Bitrate min="10000000" />
+	</Package>
+	<Package name="screenrecord">
+		<Limit name="frame-rate" value="60" />
+		<Limit name="priority" value="1" />
+		<Fps min="60.0" />
+	</Package>
+	<Package name="com.vivo.smartshot">
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-max" value="44" />
+		<Limit name="video-qp-i-min" value="16" />
+		<Limit name="video-qp-p-min" value="16" />
+		<Limit name="video-qp-b-min" value="16" />
+		<Limit name="video-qp-i-max" value="44" />
+		<Limit name="video-qp-p-max" value="44" />
+		<Limit name="video-qp-b-max" value="44" />
+		<CodecType name="encoder" />
+		<MediaType name="video" />
+	</Package>
+	<Package name="com.duowan.live">
+		<Limit name="bitrate-mode" value="1" />
+		<Limit name="video-qp-i-min" value="16" />
+		<Limit name="video-qp-p-min" value="16" />
+		<Limit name="video-qp-b-min" value="16" />
+		<Limit name="video-qp-i-max" value="44" />
+		<Limit name="video-qp-p-max" value="44" />
+		<Limit name="video-qp-b-max" value="44" />
+		<CodecType name="encoder" />
+		<MediaType name="video" />
+		<Resolution min="1280x720"/>
+		<Bitrate max="6500000" />
+		<bitrate-mode min="2" max="2" />
+	</Package>
+	<Package name="COMMON">
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-max" value="44" />
+		<Limit name="video-qp-i-min" value="16" />
+		<Limit name="video-qp-p-min" value="16" />
+		<Limit name="video-qp-b-min" value="16" />
+		<Limit name="video-qp-i-max" value="44" />
+		<Limit name="video-qp-p-max" value="44" />
+		<Limit name="video-qp-b-max" value="44" />
+		<CodecType name="encoder" />
+		<MediaType name="video" />
+		<Format name="recorder-client-name" value="com.ezscreenrecorder" />
+	</Package>
+	<Package name="COMMON">
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-min" value="16" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-i-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-p-max" value="44" />
+		<Limit name="vendor.qti-ext-enc-qp-range.qp-b-max" value="44" />
+		<Limit name="video-qp-i-min" value="16" />
+		<Limit name="video-qp-p-min" value="16" />
+		<Limit name="video-qp-b-min" value="16" />
+		<Limit name="video-qp-i-max" value="44" />
+		<Limit name="video-qp-p-max" value="44" />
+		<Limit name="video-qp-b-max" value="44" />
+		<CodecType name="encoder" />
+		<MediaType name="video" />
+		<Format name="recorder-client-name" value="com.hecorat.screenrecorder.free" />
+	</Package>
+	<Package name="com.tencent.mm">
+		<!--OMX_VIDEO_AVCLevel52 -->
+		<Limit name="level" value="65536" />
+		<Level min="65537" />
+		<Resolution max="4096x2304" />
+	</Package>
+	<Package name="COMMON">
+		<Limit name="vendor.qti-ext-cvp-filter-explicit-disable.value" value="1" />
+		<vivoRecordScene value="lowPowerEncoder" />
+		<CodecType name="encoder" />
+		<MediaType name="video" />
+	</Package>
+	<Platform name="SM8750">
+		<project name="PD2454">
+			<Package name="com.android.camera">
+				<Limit name="vendor.qti-ext-enc-content-adaptive-mode.value" value="0" />
+				<CodecType name="encoder" />
+				<MediaType name="video" />
+			</Package>
+		</project>
+		<Package name="com.android.camera">
+			<Limit name="max-bframes" value="1" />
+			<Limit name="vendor.qti-ext-enc-info-native_recording.value" value="1" />
+			<Limit name="vendor.qti-ext-enc-open-gop.value" value="1" />
+			<Limit name="ts-schema" value="android.generic.1+2" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+		</Package>
+		<Package name="com.android.camera">
+			<Mime name="video/hevc" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+			<Resolution min="1920x1080" max="3840x2160" />
+			<Fps min="30" max="60" />
+			<i-frame-interval min="1" max="1" />
+			<bitrate-mode min="1" max="1" />
+			<bitrate-scale value="0.85" />
+			<vivoRecordScene value="DefaultRecord" />
+		</Package>
+		<Package name="com.android.camera">
+			<Limit name="vendor.qti-ext-enc-chroma-qp-offset.value" value="62708" />
+			<Mime name="video/dolby-vision" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+			<Resolution min="1920x1080" max="3840x2160" />
+			<Fps min="30" max="60" />
+			<i-frame-interval min="1" max="1" />
+			<bitrate-mode min="1" max="1" />
+			<bitrate-scale value="0.8" />
+			<vivoRecordScene value="DefaultRecord" />
+		</Package>
+		<Package name="com.android.camera">
+			<Limit name="vendor.qti-ext-enc-chroma-qp-offset.value" value="62708" />
+			<Mime name="video/hevc" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+			<Resolution value="1920x1080" />
+			<Fps min="30" max="30" />
+			<i-frame-interval min="1" max="1" />
+			<bitrate-mode min="1" max="1" />
+			<vivoRecordScene value="MoviePortraits" />
+		</Package>
+		<Package name="com.android.camera">
+			<Limit name="video-qp-i-min" value="5" />
+			<Limit name="video-qp-p-min" value="5" />
+			<Limit name="vendor.qti-ext-enc-chroma-qp-offset.value" value="62708" />
+			<Limit name="vendor.qti-ext-enc-content-adaptive-mode.value" value="0" />
+			<Mime name="video/hevc" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+			<i-frame-interval min="1" max="1" />
+			<bitrate-mode min="1" max="1" />
+			<vivoRecordScene value="LogMode" />
+		</Package>
+		<Package name="com.android.camera">
+			<Limit name="video-qp-i-min" value="8" />
+			<Limit name="video-qp-p-min" value="8" />
+			<Limit name="vendor.qti-ext-enc-chroma-qp-offset.value" value="62708" />
+			<Mime name="video/hevc" />
+			<CodecType name="encoder" />
+			<MediaType name="video" />
+			<Resolution min="1920x1080" max="3840x2160" />
+			<Fps min="50" max="60" />
+			<i-frame-interval min="1" max="1" />
+			<bitrate-mode min="1" max="1" />
+			<vivoRecordScene value="LogMode" />
+		</Package>
+	</Platform>
+</VCodecCfg>
