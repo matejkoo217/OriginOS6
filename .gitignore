@@ -27,3 +27,6 @@ resetprop
 init/avb/oemvgc.pem
 /vendor_dlkm/vivo_rsc/fuxi
 /boot/fuxi
+overlays/debug.keystore
+/overlays/VivoFrameworksResRRO/build
+overlays/VivoFrameworksResRRO.apk.idsig
