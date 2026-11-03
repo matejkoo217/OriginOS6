@@ -1,4 +1,4 @@
-
+🐥
 /rom
 /zDEPRACTED
 *.java
@@ -11,7 +11,9 @@
 *.order
 *.mod
 *.mod.c
-/resize
+/resize/old
+resize/gpt_both0.bin
+resize/out/gpt_both0.bin
 /selinux
 *.cmake
 /settings_abouthook/build
