@@ -44,8 +44,19 @@ androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=PLACEHOLDER androidbo
 
 replace PLACEHOLDER with the values from ./out/new_digest_flags3.txt
 
+btw also add:
+androidboot.vc.magic=none androidboot.vbmeta.device_state=locked
+
+based on /vendor/etc/sw_selfcheck_items/security_items.xml enteries.
 
 5. Flash vbmeta
-6. Boot.
+
+6. cust
+cust is needed for vivo vold and other bs.
+i provided fuxi cust.img , it should work on other phones with 2gb custs or just run script to change it.
+if your phone doesnt have cust , you will have to add it to Super, recomended size of cust is "SIZE"
+it has to be writable in Super!
+
+7. Boot.
 
 # dont cry to me if you brick i will laugh at you :D.
