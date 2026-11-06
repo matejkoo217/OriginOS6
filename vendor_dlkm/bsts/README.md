@@ -32,7 +32,8 @@ semantics are confirmed.
 ## Current node surface
 
 `/sys/class/power_supply/battery/`: `chg_type`, `fg_passed_charge`,
-`soc_decimal`, `engine`, `charging_speed`, `board_temp_state`.
+`soc_decimal`, `engine`, `charging_speed`, `board_temp_state`,
+`primary_board_temp`.
 `/sys/class/power_supply/usb/`: `present`.
 `/sys/class/fuelsummary/`: `amount`, `age_amount`, `amount_total`, `cycle`,
 `roll_current`, `soh`.
@@ -45,6 +46,7 @@ Derived from real QTI state:
 | `engine` | USB type (PD/PD_DRP/PD_PPS → `3`) |
 | `adapter_power` | usb `VOLTAGE_NOW` * `CURRENT_NOW` |
 | `board_temp_state` / `tboard` | `qcom-battery/connector_temp` (≥ 45.0 °C) |
+| `primary_board_temp` | `qcom-battery/connector_temp` (0.1 °C, raw) |
 | `md_status` / `md_scene` / `md_data` | `qcom-battery/moisture_detection_status` |
 | `fuelsummary/soh`, `ui_soh`, `aging_soh` | `qcom-battery/soh` (83 on this unit), else aged/design capacity |
 | `bat_wpc_tx_chg_state`, `wls_otg_status` | `reverse_chg_mode` **or** `wireless_boost_en` ≠ 0 → `1` |

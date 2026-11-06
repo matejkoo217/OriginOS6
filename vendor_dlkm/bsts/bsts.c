@@ -10,6 +10,7 @@
  *   /sys/class/power_supply/battery/engine
  *   /sys/class/power_supply/battery/charging_speed
  *   /sys/class/power_supply/battery/board_temp_state
+ *   /sys/class/power_supply/battery/primary_board_temp
  *   /sys/class/power_supply/usb/present
  *   /sys/class/cms_class/...         (engine, adapter_power, mode flags)
  *
@@ -72,6 +73,9 @@ static bool have_soc_decimal;
 static bool have_engine;
 static bool have_charging_speed;
 static bool have_board_temp_state;
+static bool have_primary_board_temp;
+static bool have_fg_raw_soc;
+static bool have_charge_avg;
 static bool have_usb_present;
 static struct class *cms_class;
 static struct class *fuelsummary_class;
@@ -271,6 +275,27 @@ static ssize_t board_temp_state_show(struct device *dev,
 	return sysfs_emit(buf, "%d\n", temp >= 450 ? 1 : 0);
 }
 static DEVICE_ATTR_RO(board_temp_state);
+static ssize_t primary_board_temp_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n",
+			  qcom_batt_read_int(QCOM_BATT_PATH("connector_temp")));
+}
+static DEVICE_ATTR_RO(primary_board_temp);
+static ssize_t fg_raw_soc_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n",
+			  qcom_batt_read_int(QCOM_BATT_PATH("fg1_rsoc")));
+}
+static DEVICE_ATTR_RO(fg_raw_soc);
+static ssize_t charge_avg_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n",
+			  qcom_batt_read_int(QCOM_BATT_PATH("fg1_ai")) / 1000);
+}
+static DEVICE_ATTR_RO(charge_avg);
 static ssize_t cms_engine_show(struct class *cls, struct class_attribute *attr, char *buf)
 {
 	return sysfs_emit(buf, "%d\n", derive_engine());
@@ -905,6 +930,15 @@ static int ui_soh_show(char *buf, size_t len)
 {
 	return scnprintf(buf, len, "%d\n", battery_soh());
 }
+static int sometime_keep_soc_show(char *buf, size_t len)
+{
+	int v = READ_ONCE(soc_limit);
+	return scnprintf(buf, len, "%d\n", v > 0 ? v : 0);
+}
+static int so_ver_show(char *buf, size_t len)
+{
+	return scnprintf(buf, len, "3\n");
+}
 #define VIVO_HEALTH_BATT_OT	0x0002
 #define VIVO_HEALTH_BATT_OV	0x0008
 #define VIVO_HEALTH_TEMP_LOW 0x0020
@@ -933,6 +967,7 @@ static struct cms_node cms_nodes[] = {
 	CMS_PS("vchg", &usb_psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, 1000),
 	CMS_PS("ibat", &battery_psy, POWER_SUPPLY_PROP_CURRENT_NOW, 1000),
 	CMS_QCOM("tboard", "connector_temp", 0, 0),
+	CMS_QCOM("primary_board_temp", "connector_temp", 0, 0),
 	CMS_PS("vcell1_voltage", &battery_psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, 1000),
 	CMS_CONST("vcell2_voltage", 0),	/* fuxi is single-cell */
 	CMS_FN("coulomb", coulomb_show),
@@ -978,6 +1013,7 @@ static struct cms_node cms_nodes[] = {
 	CMS_RW_D("battery_health_learning_capacity_state", 0666, 1000, 1000, "0"),
 	CMS_QCOM("battery_health_learning_soh", "soh", 0, 0),
 	CMS_RW("cms_enable", 0664, 1000, 0),
+	CMS_RW("cms_user_notify_flag", 0664, 1000, 1000),
 	CMS_RW("fixed_freq", 0777, 1000, 0),
 	CMS_RW("scene_table", 0666, 1000, 0),
 	CMS_RW("scene_current", 0666, 1000, 0),
@@ -991,6 +1027,7 @@ static struct cms_node cms_nodes[] = {
 	CMS_RW("otg_silicon_batt_low_thr", 0664, 1000, 1000),
 	CMS_RW_D("soh_life_loss", 0664, 1000, 1000, "0 0"),
 	CMS_RW_D("soh_ver_transition", 0664, 1000, 1000, "3"),
+	CMS_FN("so_ver", so_ver_show),
 	CMS_RW("battery_health_framework_flag", 0664, 1000, 1000),
 	CMS_RW("soh_test", 0664, 1000, 1000),
 	CMS_RW("soh_test_ocv_soc", 0664, 1000, 1000),
@@ -1003,6 +1040,7 @@ static struct cms_node cms_nodes[] = {
 	CMS_RW("exhibition_mode", 0664, 1000, 1000),
 	CMS_RW("gsm", 0664, 1000, 1000),
 	CMS_RW("keep_chg_soc", 0664, 1000, 1000),
+	CMS_FN("sometime_keep_soc", sometime_keep_soc_show),
 	CMS_RW("oem_model", 0664, 1000, 1000),
 	CMS_RW("panlevel", 0664, 1000, 1000),
 	CMS_RW("pkg_state", 0664, 1000, 1000),
@@ -1301,6 +1339,18 @@ static int add_attrs(void)
 			&have_board_temp_state);
 	if (rc)
 		goto err;
+	rc = bsts_add_file(&battery_psy->dev, &dev_attr_primary_board_temp,
+			&have_primary_board_temp);
+	if (rc)
+		goto err;
+	rc = bsts_add_file(&battery_psy->dev, &dev_attr_fg_raw_soc,
+			&have_fg_raw_soc);
+	if (rc)
+		goto err;
+	rc = bsts_add_file(&battery_psy->dev, &dev_attr_charge_avg,
+			&have_charge_avg);
+	if (rc)
+		goto err;
 	rc = bsts_add_file(&usb_psy->dev, &dev_attr_present,
 			&have_usb_present);
 	if (rc)
@@ -1320,6 +1370,15 @@ static void remove_attrs(void)
 		usb_psy = NULL;
 	}
 	if (battery_psy) {
+		if (have_charge_avg)
+			device_remove_file(&battery_psy->dev,
+				&dev_attr_charge_avg);
+		if (have_fg_raw_soc)
+			device_remove_file(&battery_psy->dev,
+				&dev_attr_fg_raw_soc);
+		if (have_primary_board_temp)
+			device_remove_file(&battery_psy->dev,
+				&dev_attr_primary_board_temp);
 		if (have_board_temp_state)
 			device_remove_file(&battery_psy->dev,
 				&dev_attr_board_temp_state);
@@ -1355,6 +1414,9 @@ static void remove_attrs(void)
 	have_engine = false;
 	have_charging_speed = false;
 	have_board_temp_state = false;
+	have_primary_board_temp = false;
+	have_fg_raw_soc = false;
+	have_charge_avg = false;
 	have_usb_present = false;
 }
 static void bsts_probe_work(struct work_struct *work)
