@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/kobject.h>
 #include <linux/module.h>
@@ -9,6 +10,7 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/uidgid.h>
+#include <linux/workqueue.h>
 /*
  * Vivo drives its sunlight/peak (global HBM) brightness by writing an
  * integer mode to /sys/lcm/oled_hbm (VivoPeakController):
@@ -43,6 +45,23 @@ MODULE_PARM_DESC(high_te, "max TE rate reported in ltpo_mode (240 = vivo contrac
 static bool dimming_bridge = true;
 module_param(dimming_bridge, bool, 0644);
 MODULE_PARM_DESC(dimming_bridge, "forward /sys/lcm/dimming_speed to mi_disp feature 0 (dimming on/off) (default: 1)");
+static bool aod_carry = true;
+module_param(aod_carry, bool, 0644);
+MODULE_PARM_DESC(aod_carry, "carry the last awake backlight into the AOD after screen-off (default: 1)");
+static int aod_carry_max = 2047;
+module_param(aod_carry_max, int, 0644);
+MODULE_PARM_DESC(aod_carry_max, "upper clamp for the carried AOD backlight (default: 2047)");
+#define AOD_LEVEL_MIN 21
+#define AOD_LEVEL_MAX 30
+#define AOD_CARRY_POLL_MS 250
+#define AOD_CARRY_ARM_MS 10000
+static bool aod_carry_active;
+static int aod_last_awake;
+static int aod_carried;
+static int aod_low_cnt;
+static unsigned long aod_arm_until;
+static void aod_carry_work_fn(struct work_struct *work);
+static DECLARE_DELAYED_WORK(aod_carry_work, aod_carry_work_fn);
 /*
  * AOD bridge (vivo contract -> mi_disp).
  *
@@ -79,6 +98,7 @@ MODULE_PARM_DESC(dimming_bridge, "forward /sys/lcm/dimming_speed to mi_disp feat
 #define MI_DOZE_OFF 0
 #define MI_DOZE_HBM 1
 #define MI_DOZE_LBM 2
+#define MI_DOZE_HBM_DBV_DEFAULT 243
 #define VIVO_PEAK_V1_ON 24
 #define VIVO_PEAK_V1_OFF 25
 #define VIVO_PEAK_V2_ON 26
@@ -506,6 +526,48 @@ static int mi_disp_read_str(const char *path, char *out, size_t len)
 	strim(out);
 	return 0;
 }
+static void aod_carry_work_fn(struct work_struct *work)
+{
+	int bl, target;
+	if (!aod_carry_active)
+		return;
+	if (!aod_carry)
+		goto rearm;
+	bl = mi_disp_read_int(MI_BACKLIGHT_BRIGHTNESS, -1);
+	if (bl < 0)
+		goto rearm;
+	if (bl > AOD_LEVEL_MAX) {
+		if (bl != aod_carried && !time_before(jiffies, aod_arm_until)) {
+			aod_last_awake = bl;
+			aod_arm_until = 0;
+		}
+		aod_low_cnt = 0;
+		goto rearm;
+	}
+	if (aod_last_awake <= AOD_LEVEL_MAX) {
+		aod_low_cnt = 0;
+		goto rearm;
+	}
+	if (!time_before(jiffies, aod_arm_until)) {
+		aod_arm_until = jiffies + msecs_to_jiffies(AOD_CARRY_ARM_MS);
+		aod_low_cnt = 0;
+		pr_info("lcm_bridge: aod carry armed (awake %d)\n",
+			aod_last_awake);
+	}
+	if (++aod_low_cnt < 2)
+		goto rearm;
+	aod_low_cnt = 0;
+	target = clamp(aod_last_awake, AOD_LEVEL_MIN, aod_carry_max);
+	if (bl != target) {
+		pr_info("lcm_bridge: aod carry %d -> %d (awake %d)\n",
+			bl, target, aod_last_awake);
+		mi_write_int_file(MI_BACKLIGHT_BRIGHTNESS, target);
+		aod_carried = target;
+		aod_arm_until = jiffies + msecs_to_jiffies(AOD_CARRY_ARM_MS);
+	}
+rearm:
+	schedule_delayed_work(&aod_carry_work, msecs_to_jiffies(AOD_CARRY_POLL_MS));
+}
 static int drm_mode_fps(int *lo, int *hi)
 {
 	struct file *f;
@@ -660,12 +722,30 @@ static void lcm_apply_aod_info(const char *merged)
 }
 static void lcm_apply_aod_bl(char *str)
 {
-	int level;
-	if (kstrtoint(strim(str), 10, &level))
+	char info[LCM_BUF_MAX];
+	int level, high, cls;
+	if (kstrtoint(strim(str), 10, &level) || level < 0)
 		return;
-	pr_info("lcm_bridge: aod_bl_level %d -> doze class %d\n", level,
-		level ? MI_DOZE_LBM : MI_DOZE_OFF);
-	lcm_apply_doze_class(level ? MI_DOZE_LBM : MI_DOZE_OFF);
+	if (aod_carry) {
+		pr_info("lcm_bridge: aod_bl_level %d recorded (aod_carry owns the backlight)\n",
+			level);
+		return;
+	}
+	mutex_lock(&lcm_lock);
+	strncpy(info, aod_disp_info_val, sizeof(info) - 1);
+	info[sizeof(info) - 1] = '\0';
+	mutex_unlock(&lcm_lock);
+	if (kv_get_int(info, "aod_high_brightness", &high) || high <= 0)
+		high = MI_DOZE_HBM_DBV_DEFAULT;
+	if (level == 0)
+		cls = MI_DOZE_OFF;
+	else if (level >= high)
+		cls = MI_DOZE_HBM;
+	else
+		cls = MI_DOZE_LBM;
+	pr_info("lcm_bridge: aod_bl_level %d -> doze class %d (high=%d)\n",
+		level, cls, high);
+	lcm_apply_doze_class(cls);
 }
 static ssize_t oled_hbm_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -780,6 +860,8 @@ static void lcm_del_attrs(struct kset *kset, struct kobj_attribute **attrs, int 
 
 static void lcm_bridge_teardown(void)
 {
+	aod_carry_active = false;
+	cancel_delayed_work_sync(&aod_carry_work);
 	if (lcm_event_kobj) {
 		kobject_del(lcm_event_kobj);
 		kobject_put(lcm_event_kobj);
@@ -846,6 +928,9 @@ static int __init lcm_bridge_init(void)
 	ret = lcm_add_attrs(fingerprint_kset, fp_attrs, ARRAY_SIZE(fp_attrs));
 	if (ret)
 		goto err;
+	aod_carry_active = true;
+	schedule_delayed_work(&aod_carry_work,
+			      msecs_to_jiffies(AOD_CARRY_POLL_MS));
 	pr_debug("lcm_bridge: /sys/lcm, /sys/lcm1, /sys/fingerprint ready\n");
 	return 0;
 err:
