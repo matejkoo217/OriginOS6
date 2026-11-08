@@ -450,6 +450,7 @@ void SscEngine::onEvent(const uint8_t* data, size_t size, uint64_t ts, Source sr
         std::lock_guard<std::mutex> lk(mLock);
         mSources[src].lastEventNs = now;
         mSources[src].eventCount++;
+        mSources[src].healthFails = 0;
             if (mSources[src].eventCount <= 6) {
             char hex[3 * 48 + 1];
             size_t n = size < 48 ? size : 48;
@@ -567,8 +568,7 @@ void SscEngine::watchdogLoop() {
                 jobs[nJobs].stateChange = false;
                 nJobs++;
                 s.lastSendNs = now;
-                if (i == kSourceRaw && s.eventCount >= kMinHealthEvents &&
-                    now - s.lastEventNs > kQuietWindowNs) {
+                if (i == kSourceRaw && s.active && now - s.lastEventNs > kQuietWindowNs) {
                     const int64_t silent_ms = (now - s.lastEventNs) / 1000000;
                     s.lastEventNs = now;
                     if (s.healthFails == 0) {
