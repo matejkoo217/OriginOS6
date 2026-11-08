@@ -33,5 +33,5 @@ overlays/debug.keystore
 /overlays/VivoFrameworksResRRO/build
 overlays/VivoFrameworksResRRO.apk.idsig
 /light_hal/fuxi
-/SmartScreenOn/build
+/smart_screen_on/build
 /audio/fuxi
