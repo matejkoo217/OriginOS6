@@ -1,5 +1,0 @@
-service abouthookd /vendor/bin/abouthookd com.android.settings /vendor/framework/abouthook/libc++_shared.so /vendor/framework/abouthook/libdobby.so /vendor/framework/abouthook/liblsplant.so /vendor/framework/abouthook/libabouthook.so
-    class late_start
-    user root
-    group root system
-    seclabel u:r:abouthookd:s0

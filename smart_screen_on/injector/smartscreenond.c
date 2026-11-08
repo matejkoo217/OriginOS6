@@ -13,6 +13,13 @@
 #include <sys/stat.h>
 #include <elf.h>
 #include <stdint.h>
+#include <time.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <linux/netlink.h>
+#include <linux/connector.h>
+#include <linux/cn_proc.h>
 #include <android/log.h>
 #define LOG_TAG "smartscreenond"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -21,6 +28,16 @@
 #define ANDROID_DLEXT_USE_LIBRARY_FD 0x10ULL
 #define SYS_OPENAT 56
 #define AT_FDCWD (-100)
+#define FULL_RESCAN_NS (30LL * 1000000000LL)
+#define IDLE_SLEEP_MIN_US 20000
+#define IDLE_SLEEP_MAX_US 250000
+#define NETLINK_CONNECTOR 11
+#define PENDING_MAX 8
+#define PENDING_TTL_NS (3LL * 1000000000LL)
+#define PENDING_FIRST_CHECK_NS (20LL * 1000000LL)
+#define PENDING_RECHECK_NS (100LL * 1000000LL)
+#define ATTACH_TIMEOUT_MS 5000
+#define SAFETY_SCAN_NS (5LL * 1000000000LL)
 struct user_pt_regs64 { uint64_t regs[31]; uint64_t sp; uint64_t pc; uint64_t pstate; };
 struct dlextinfo {
     uint64_t flags;
@@ -32,28 +49,146 @@ struct dlextinfo {
     uint64_t library_namespace;
 };
 
-static int find_process(const char* name) {
+static int64_t mono_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+static int cmdline_is(int pid, const char* name) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    char cmdline[256];
+    ssize_t len = read(fd, cmdline, sizeof(cmdline) - 1);
+    close(fd);
+    if (len <= 0) return 0;
+    cmdline[len] = '\0';
+    return strcmp(cmdline, name) == 0;
+}
+static int gLastPid = 0;
+static int64_t gLastFullScanNs = 0;
+static int find_process(const char* name, int reset_on_match) {
+    const int64_t now = mono_ns();
+    const int full = (now - gLastFullScanNs) >= FULL_RESCAN_NS;
+    if (full) gLastFullScanNs = now;
     DIR* proc = opendir("/proc");
     if (proc == NULL) return -1;
     struct dirent* entry;
     int found = -1;
     while ((entry = readdir(proc)) != NULL) {
         if (entry->d_type != DT_DIR) continue;
-        int pid = atoi(entry->d_name);
-        if (pid <= 0) continue;
-        char path[64];
-        snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
-        int fd = open(path, O_RDONLY | O_CLOEXEC);
-        if (fd < 0) continue;
-        char cmdline[256];
-        ssize_t len = read(fd, cmdline, sizeof(cmdline) - 1);
-        close(fd);
-        if (len <= 0) continue;
-        cmdline[len] = '\0';
-        if (strcmp(cmdline, name) == 0) { found = pid; break; }
+        char* end = NULL;
+        long pid = strtol(entry->d_name, &end, 10);
+        if (pid <= 0 || end == entry->d_name || *end != '\0') continue;
+        if (!full && pid <= gLastPid) continue;
+        if (pid > gLastPid) gLastPid = (int)pid;
+        if (cmdline_is((int)pid, name)) { found = (int)pid; break; }
     }
     closedir(proc);
+    if (found > 0) {
+        gLastPid = 0;
+        gLastFullScanNs = 0;
+    }
     return found;
+}
+#define MAX_EVENTS 8192
+static int gCnFd = -1;
+static int gHookedPid = -1;
+static int gHookedExited = 0;
+static struct { int pid; int64_t deadline_ns; int64_t next_check_ns; } gPending[PENDING_MAX];
+
+static int cn_open(void) {
+    int fd = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
+    if (fd < 0) return -1;
+    struct sockaddr_nl sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.nl_family = AF_NETLINK;
+    sa.nl_pid = (unsigned)getpid();
+    sa.nl_groups = CN_IDX_PROC;
+    int rcvbuf = 4 * 1024 * 1024;
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+    if (bind(fd, (struct sockaddr*)&sa, sizeof(sa)) != 0) { close(fd); return -1; }
+    struct {
+        struct nlmsghdr nl;
+        struct cn_msg cn;
+        int op;
+    } __attribute__((packed)) req;
+    memset(&req, 0, sizeof(req));
+    req.nl.nlmsg_len = NLMSG_LENGTH(sizeof(struct cn_msg) + sizeof(int));
+    req.nl.nlmsg_type = NLMSG_DONE;
+    req.cn.id.idx = CN_IDX_PROC;
+    req.cn.id.val = CN_VAL_PROC;
+    req.cn.len = sizeof(int);
+    req.op = PROC_CN_MCAST_LISTEN;
+    memcpy(req.cn.data, &req.op, sizeof(int));
+    struct sockaddr_nl dst;
+    memset(&dst, 0, sizeof(dst));
+    dst.nl_family = AF_NETLINK;
+    if (sendto(fd, &req, req.nl.nlmsg_len, 0, (struct sockaddr*)&dst, sizeof(dst)) < 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+static void pending_add(int pid) {
+    if (pid <= 0) return;
+    const int64_t dl = mono_ns() + PENDING_TTL_NS;
+    int free_slot = -1, oldest = 0;
+    for (int i = 0; i < PENDING_MAX; i++) {
+        if (gPending[i].pid == pid) { gPending[i].deadline_ns = dl; return; }
+        if (gPending[i].pid == 0 && free_slot < 0) free_slot = i;
+        if (gPending[i].deadline_ns < gPending[oldest].deadline_ns) oldest = i;
+    }
+    int slot = (free_slot >= 0) ? free_slot : oldest;
+    gPending[slot].pid = pid;
+    gPending[slot].deadline_ns = dl;
+    gPending[slot].next_check_ns = mono_ns() + PENDING_FIRST_CHECK_NS;
+}
+static void pending_drop(int pid) {
+    for (int i = 0; i < PENDING_MAX; i++) if (gPending[i].pid == pid) gPending[i].pid = 0;
+}
+static void cn_drain(int timeout_ms) {
+    if (gCnFd < 0) return;
+    fd_set rf;
+    FD_ZERO(&rf);
+    FD_SET(gCnFd, &rf);
+    struct timeval tv = { timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
+    if (select(gCnFd + 1, &rf, NULL, NULL, &tv) <= 0) return;
+    static char buf[MAX_EVENTS];
+    ssize_t n = recv(gCnFd, buf, sizeof(buf), 0);
+    if (n <= 0) return;
+    struct nlmsghdr* nl = (struct nlmsghdr*)buf;
+    for (; NLMSG_OK(nl, (unsigned)n); nl = NLMSG_NEXT(nl, n)) {
+        if (nl->nlmsg_type != NLMSG_DONE) continue;
+        struct cn_msg* cn = (struct cn_msg*)NLMSG_DATA(nl);
+        struct proc_event* ev = (struct proc_event*)cn->data;
+        switch (ev->what) {
+            case PROC_EVENT_FORK:
+                pending_add(ev->event_data.fork.child_pid);
+                break;
+            case PROC_EVENT_EXEC:
+                pending_add(ev->event_data.exec.process_pid);
+                break;
+            case PROC_EVENT_EXIT:
+                if (ev->event_data.exit.process_pid == gHookedPid) gHookedExited = 1;
+                pending_drop(ev->event_data.exit.process_pid);
+                break;
+            default:
+                break;
+        }
+    }
+}
+static int pending_pick(const char* name) {
+    const int64_t now = mono_ns();
+    for (int i = 0; i < PENDING_MAX; i++) {
+        if (gPending[i].pid == 0) continue;
+        if (now > gPending[i].deadline_ns) { gPending[i].pid = 0; continue; }
+        if (now < gPending[i].next_check_ns) continue;
+        if (cmdline_is(gPending[i].pid, name)) return gPending[i].pid;
+        gPending[i].next_check_ns = now + PENDING_RECHECK_NS;
+    }
+    return -1;
 }
 static uint64_t lib_base(int pid, const char* needle, char* path_out, size_t path_len) {
     char maps_path[64];
@@ -148,7 +283,19 @@ static int inject_libraries(int pid, char** paths, int path_count) {
         return -1;
     }
     int status = 0;
-    waitpid(pid, &status, 0);
+    int stopped = 0;
+    for (int waited_ms = 0; waited_ms < ATTACH_TIMEOUT_MS; waited_ms += 10) {
+        int st = 0;
+        pid_t r = waitpid(pid, &st, WNOHANG);
+        if (r == pid) { status = st; stopped = 1; break; }
+        if (r < 0 && errno == ECHILD) break;
+        usleep(10000);
+    }
+    if (!stopped) {
+        LOGE("target %d did not stop within %dms (frozen?), abandoning", pid, ATTACH_TIMEOUT_MS);
+        ptrace(PTRACE_DETACH, pid, NULL, NULL);
+        return -1;
+    }
     if (!WIFSTOPPED(status)) {
         LOGE("target not stopped after attach");
         ptrace(PTRACE_DETACH, pid, NULL, NULL);
@@ -229,6 +376,17 @@ static int inject_libraries(int pid, char** paths, int path_count) {
     }
     return 0;
 }
+static int is_frozen(int pid) {
+    char path[64], buf[64];
+    snprintf(path, sizeof(path), "/proc/%d/wchan", pid);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0) return 0;
+    buf[n] = '\0';
+    return strstr(buf, "freezer") != NULL;
+}
 static int pid_alive(int pid) {
     char path[64];
     snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
@@ -284,6 +442,7 @@ static int lib_loaded(int pid, const char* needle) {
     fclose(maps);
     return found;
 }
+//🐥
 #define MIN_PROC_AGE_MS 60
 int main(int argc, char** argv) {
     const char* target = argc > 1 ? argv[1] : "com.bbk.facewake";
@@ -292,34 +451,90 @@ int main(int argc, char** argv) {
         return 1;
     }
     int hooked_pid = -1;
-    LOGI("smartscreenond watching %s (%d libs)", target, argc - 2);
+    int candidate = -1;
+    int64_t cand_waited_ns = 0;
+    useconds_t idle_us = IDLE_SLEEP_MIN_US;
+    int64_t last_scan_ns = mono_ns();
+
+    gCnFd = cn_open();
+    if (gCnFd >= 0) {
+        LOGI("smartscreenond watching %s (%d libs), process events: CN_PROC", target, argc - 2);
+    } else {
+        LOGI("smartscreenond watching %s (%d libs), process events: unavailable (%s), "
+             "falling back to /proc scan",
+             target, argc - 2, strerror(errno));
+    }
+    candidate = find_process(target, 1);
     for (;;) {
         if (hooked_pid > 0) {
-            if (pid_alive(hooked_pid)) {
+            if (gCnFd >= 0) {
+                cn_drain(500);
+                if (!gHookedExited && pid_alive(hooked_pid)) continue;
+            } else if (pid_alive(hooked_pid)) {
                 usleep(500000);
                 continue;
             }
             LOGI("pid %d gone, waiting for a new one", hooked_pid);
             hooked_pid = -1;
+            gHookedPid = -1;
+            gHookedExited = 0;
+            candidate = -1;
+            idle_us = IDLE_SLEEP_MIN_US;
+            continue;
         }
-        int pid = find_process(target);
-        if (pid > 0) {
-            long long age = proc_age_ms(pid);
-            if (age < 0) { usleep(10000); continue; }
-            if (age < MIN_PROC_AGE_MS) { usleep(5000); continue; }
-            if (!pid_alive(pid)) { usleep(10000); continue; }
-            if (!lib_loaded(pid, "libart.so")) { usleep(10000); continue; }
-            LOGI("pid %d age %lldms, injecting", pid, age);
-            int rc = inject_libraries(pid, &argv[2], argc - 2);
-            if (rc == 0) {
-                hooked_pid = pid;
-                LOGI("injected pid %d", pid);
+        if (candidate <= 0) {
+            if (gCnFd >= 0) {
+                cn_drain(1000);
+                candidate = pending_pick(target);
+                if (candidate <= 0) {
+                    if (mono_ns() - last_scan_ns >= SAFETY_SCAN_NS) {
+                        last_scan_ns = mono_ns();
+                        candidate = find_process(target, 0);
+                    }
+                    if (candidate <= 0) continue;
+                }
             } else {
-                LOGE("injection failed for pid %d, will retry", pid);
-                usleep(50000);
+                candidate = find_process(target, 1);
+                if (candidate <= 0) {
+                    usleep(idle_us);
+                    if (idle_us < IDLE_SLEEP_MAX_US) idle_us *= 2;
+                    continue;
+                }
             }
-        } else {
+            idle_us = IDLE_SLEEP_MIN_US;
+            cand_waited_ns = 0;
+        }
+        if (is_frozen(candidate)) { usleep(500000); continue; }
+        long long age = proc_age_ms(candidate);
+        if (age < 0 || !pid_alive(candidate)) { candidate = -1; continue; }
+        if (age < MIN_PROC_AGE_MS) { usleep(5000); continue; }
+        if (!lib_loaded(candidate, "libart.so")) {
+            static int64_t last_warn = 0;
+            if (mono_ns() - last_warn > 2000000000LL) {
+                last_warn = mono_ns();
+                LOGI("pid %d: libart not mapped yet (age %lldms)", candidate, age);
+            }
+            if (cand_waited_ns == 0) cand_waited_ns = mono_ns();
+            if (mono_ns() - cand_waited_ns > 3000000000LL) {
+                LOGE("pid %d never loaded libart, giving up", candidate);
+                candidate = -1;
+                cand_waited_ns = 0;
+                continue;
+            }
             usleep(20000);
+            continue;
+        }
+        LOGI("pid %d age %lldms, injecting", candidate, age);
+        int rc = inject_libraries(candidate, &argv[2], argc - 2);
+        if (rc == 0) {
+            hooked_pid = candidate;
+            gHookedPid = candidate;
+            gHookedExited = 0;
+            candidate = -1;
+            LOGI("injected pid %d", hooked_pid);
+        } else {
+            LOGE("injection failed for pid %d, will retry", candidate);
+            usleep(50000);
         }
     }
     return 0;
