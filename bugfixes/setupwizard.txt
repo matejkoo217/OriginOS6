@@ -1,0 +1,13 @@
+-------------------------------------------------------------------------------------
+when setup hangs it can be often resolved by addint these props to odm:
+ro.product.odm.manufacturer=vivo
+ro.product.odm.brand=vivo
+ro.vivo.internet.name=iQOO 11
+ro.vivo.market.name=iQOO 11
+
+those values are template only, change them to match your base!
+
+-------------------------------------------------------------------------------------
+security options such as face, fingerprint or password wont work until you erase frp.
+
+-------------------------------------------------------------------------------------

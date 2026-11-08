@@ -1,0 +1,15 @@
+Vendor:
+
+volume steps:
+ro.config.media_vol_steps=15
+ro.config.media_vol_default=10
+
+density: (440 = 1080, 480 = 1440)
+ro.sf.lcd_density=440
+ro.sf.2nd_lcd_density=
+
+wallpaper being black after reboot:
+debug.stagefright.ccodec_timeout_mult=5
+
+wireless charging missing: (wont work by default but the option will be there.)
+persist.vivo.wireless_charge_support=true
