@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
+#include "wm_client.h"
 int *__errno_location(void) {
     static int e = 0;
     return &e;
@@ -678,6 +679,15 @@ static void on_finger_state_change(int down, int x, int y) {
         LOGD("Ignoring touch in FOD area: no active biometric session");
         return;
     }
+    if (down) {
+        int locked = 0;
+        int showing_not_occluded = 0;
+        if (wm_keyguard_state(&locked, &showing_not_occluded) == 0 &&
+            locked && !showing_not_occluded) {
+            LOGD("Ignoring touch in FOD area: keyguard occluded");
+            return;
+        }
+    }
     pthread_mutex_lock(&g_state_lock);
     if (g_finger_down_state == down) {
         pthread_mutex_unlock(&g_state_lock);
@@ -1038,6 +1048,12 @@ int main(int argc, char **argv) {
     set_touch_fod(read_hbm_notify_state() == 1);
     if (g_fod_press_node)
         chmod(g_fod_press_node, 0666);
+    {
+        int locked = 0, not_occluded = 0;
+        int rc = wm_keyguard_state(&locked, &not_occluded);
+        LOGI("keyguard: rc=%d locked=%d showing_not_occluded=%d",
+             rc, locked, not_occluded);
+    }
     pthread_t touch_tid;
     pthread_t watchdog_tid;
     pthread_t ctrl_tid;

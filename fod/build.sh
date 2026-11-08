@@ -20,6 +20,8 @@ echo "[2/3] linking out/fod_bridge"
     "$OUT/_start.o" \
     src/main.c \
     native/hidl_native_client.c \
+    native/wm_client.c \
+    -I"$DIR/native" \
     -L"$SYSLIB" -ldl -lc -lm
 rm -f "$OUT/_start.o"
 echo "[3/3] done"
