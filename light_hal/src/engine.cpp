@@ -26,7 +26,6 @@ constexpr uint32_t kMsgDisable = 10;
 constexpr uint32_t kMsgStdSensorEvent = 1025;
 constexpr uint32_t kMsgStdSensorConfigEvent = 513;
 
-
 uint32_t gLightMsgId = kMsgOnChangeConfig;
 uint32_t gRawMsgId = kMsgOnChangeConfig;
 uint32_t gDelivery = 1;
@@ -105,6 +104,10 @@ constexpr int64_t kFastHeartbeatNs = 200LL * 1000000;
 constexpr int64_t kSlowHeartbeatNs = 500LL * 1000000;
 constexpr int64_t kHealthRecreateQuietSends = 8;
 constexpr int64_t kWatchdogTickNs = 250LL * 1000000;
+constexpr int64_t kMinHealthEvents = 5;
+constexpr int64_t kQuietWindowNs = 10LL * 1000000000;
+constexpr int kMaxRebuilds = 3;
+constexpr int64_t kRebuildMinIntervalNs = 60LL * 1000000000;
 
 void putVarint(std::string& out, uint64_t v) {
     while (v >= 0x80) {
@@ -260,6 +263,28 @@ std::string SscEngine::buildRequest(const sensor_uid& suid, uint32_t msgId, bool
     putBytes(msg, 4, req.data(), req.size());
     return msg;
 }
+void SscEngine::registerCallbacksLocked(void* iface, uint32_t gen) {
+    void** vt = *(void***)iface;
+    mRegisterCbFn = vt[0];
+    mSendRequestFn = vt[1];
+    typedef void (*RegisterCbFn)(void*, sensor_uid, std::function<void(uint32_t, uint64_t)>, std::function<void(int)>, std::function<void(const uint8_t*, size_t, uint64_t)>);
+    for (int i = 0; i < kSourceCount; i++) {
+        Source src = (Source)i;
+        mRespCb[i] = [this, src, gen](uint32_t msgId, uint64_t ts) {
+            if (gen != mGeneration.load(std::memory_order_acquire)) return;
+            onResponse(msgId, ts, src);
+        };
+        mErrCb[i] = [this, src, gen](int error) {
+            if (gen != mGeneration.load(std::memory_order_acquire)) return;
+            onError(error, src);
+        };
+        mEvtCb[i] = [this, src, gen](const uint8_t* data, size_t size, uint64_t ts) {
+            if (gen != mGeneration.load(std::memory_order_acquire)) return;
+            onEvent(data, size, ts, src);
+        };
+        ((RegisterCbFn)mRegisterCbFn)(iface, mSources[i].suid, mRespCb[i], mErrCb[i], mEvtCb[i]);
+    }
+}
 bool SscEngine::init() {
     if (mStarted) return true;
     loadEnvOverrides();
@@ -286,16 +311,7 @@ bool SscEngine::init() {
     void** vt = *(void***)mIface;
     mRegisterCbFn = vt[0];
     mSendRequestFn = vt[1];
-    typedef void (*RegisterCbFn)(void*, sensor_uid, std::function<void(uint32_t, uint64_t)>, std::function<void(int)>, std::function<void(const uint8_t*, size_t, uint64_t)>);
-    for (int i = 0; i < kSourceCount; i++) {
-        Source src = (Source)i;
-        mRespCb[i] = [this, src](uint32_t msgId, uint64_t ts) { onResponse(msgId, ts, src); };
-        mErrCb[i] = [this, src](int error) { onError(error, src); };
-        mEvtCb[i] = [this, src](const uint8_t* data, size_t size, uint64_t ts) {
-            onEvent(data, size, ts, src);
-        };
-        ((RegisterCbFn)mRegisterCbFn)(mIface, mSources[i].suid, mRespCb[i], mErrCb[i], mEvtCb[i]);
-    }
+    registerCallbacksLocked(mIface, mGeneration.fetch_add(1) + 1);
     mRun = true;
     mStarted = true;
     mWatchdog = std::thread([this] { watchdogLoop(); });
@@ -304,13 +320,12 @@ bool SscEngine::init() {
          (unsigned long long)kRawSuid.low, (unsigned long long)kRawSuid.high);
     return true;
 }
-bool SscEngine::sendRequest(Source src, const std::string& msg) {
-    if (mIface == nullptr || mSendRequestFn == nullptr) return false;
+bool SscEngine::sendRequest(Source src, const std::string& msg) {    if (mIface == nullptr || mSendRequestFn == nullptr) return false;
     typedef void (*SendRequestFn)(void*, sensor_uid, bool, std::string);
     ((SendRequestFn)mSendRequestFn)(mIface, mSources[src].suid, true, msg);
     return true;
 }
-bool SscEngine::sendConfig(Source src, bool enable) {
+bool SscEngine::sendConfigLocked(Source src, bool enable) {
     uint32_t msgId = enable ? (src == kSourceLight ? gLightMsgId : gRawMsgId) : kMsgDisable;
     if (getenv("LIGHT_HAL_ATTR") != nullptr) msgId = 1;
     bool withRate = enable && msgId == kMsgSensorConfig;
@@ -320,53 +335,88 @@ bool SscEngine::sendConfig(Source src, bool enable) {
          msg.size());
     return ok;
 }
-void SscEngine::configureSource(Source src, bool active, const char* why) {
-    std::lock_guard<std::mutex> lk(mLock);
-    SourceState& s = mSources[src];
-    if (s.active == active && s.configured == active) {
-        if (active && why != nullptr) {
-            LOGD("re-arm src=%d (%s)", (int)src, why);
-            sendConfig(src, true);
-            s.lastSendNs = nowNs();
-            s.fastUntilNs = nowNs() + kBootstrapNs;
-        }
-        return;
+bool SscEngine::sendConfig(Source src, bool enable) {
+    std::lock_guard<std::mutex> lk(mSendLock);
+    return sendConfigLocked(src, enable);
+}
+void SscEngine::kickLocked() {
+    mKick = true;
+    mWake.notify_one();
+}
+void SscEngine::updateDesiredLocked(const char* why) {
+    const bool light = mLightClient;
+    const bool raw = mRawClient || mLightClient;
+    SourceState& l = mSources[kSourceLight];
+    if (l.active != light) {
+        l.active = light;
+        l.healthFails = 0;
+        LOGI("configureSource src=0 active=%d (%s)", (int)light, why);
     }
-    s.active = active;
-    if (active) {
-        s.fastUntilNs = nowNs() + kBootstrapNs;
-        if (sendConfig(src, true)) {
-            s.configured = true;
-            s.lastEventNs = nowNs();
-            s.lastSendNs = nowNs();
-            s.quietSends = 0;
-        }
-    } else {
-        if (s.configured) sendConfig(src, false);
-        s.configured = false;
-        s.quietSends = 0;
+    SourceState& r = mSources[kSourceRaw];
+    if (r.active != raw) {
+        r.active = raw;
+        r.healthFails = 0;
+        LOGI("configureSource src=1 active=%d (%s)", (int)raw,
+             (raw && !mRawClient) ? "raw-for-light" : why);
     }
-    LOGI("configureSource src=%d active=%d (%s)", (int)src, (int)active, why ? why : "-");
+    kickLocked();
 }
 void SscEngine::setSensorActive(int32_t type, bool active) {
+    std::lock_guard<std::mutex> lk(mLock);
     if (type == kLightType) {
         mLightClient = active;
-        configureSource(kSourceLight, active, "light-client");
-        configureSource(kSourceRaw, active || mRawClient, "raw-for-light");
+        updateDesiredLocked("light-client");
     } else if (type == kRawType) {
         mRawClient = active;
-        configureSource(kSourceRaw, active || mLightClient, "raw-client");
+        updateDesiredLocked("raw-client");
     }
 }
 void SscEngine::rearm(const char* why) {
+    std::lock_guard<std::mutex> lk(mLock);
     for (int i = 0; i < kSourceCount; i++) {
-        if (mSources[i].active) configureSource((Source)i, true, why);
+        if (!mSources[i].active) continue;
+        mSources[i].configured = false;
+        mSources[i].lastSendNs = 0;
     }
+    LOGI("rearm (%s)", why);
+    kickLocked();
+}
+bool SscEngine::applySource(Source src, bool enable) {
+    const bool ok = sendConfig(src, enable);
+    std::lock_guard<std::mutex> lk(mLock);
+    SourceState& s = mSources[src];
+    if (ok) {
+        s.configured = enable;
+        if (enable) {
+            const int64_t now = nowNs();
+            s.lastEventNs = now;
+            s.lastSendNs = now;
+            s.fastUntilNs = now + kBootstrapNs;
+        }
+    } else {
+        s.configured = !enable;
+    }
+    return ok;
+}
+void SscEngine::logStatsLocked(int64_t now) {
+    LOGI("stats: light(%s) events=%lld last=%lldms raw=%.0f lux=%.1f (mul %.3f ovr %.1f) | raw(%s) events=%lld last=%lldms ago",
+         mSources[kSourceLight].active ? "on" : "off",
+         (long long)mSources[kSourceLight].eventCount,
+         (long long)(mSources[kSourceLight].lastEventNs
+                             ? (now - mSources[kSourceLight].lastEventNs) / 1000000
+                             : -1),
+         (double)mSources[kSourceLight].lastRaw,
+         (double)mSources[kSourceLight].lastLux, (double)gScaleMul,
+         (double)gLuxOverride,
+         mSources[kSourceRaw].active ? "on" : "off",
+         (long long)mSources[kSourceRaw].eventCount,
+         (long long)(mSources[kSourceRaw].lastEventNs
+                             ? (now - mSources[kSourceRaw].lastEventNs) / 1000000
+                             : -1));
 }
 void SscEngine::onResponse(uint32_t msgId, uint64_t ts, Source src) {
     LOGD("resp src=%d msg=%u ts=%llu", (int)src, msgId, (unsigned long long)ts);
     std::lock_guard<std::mutex> lk(mLock);
-    mSources[src].quietSends = 0;
 }
 void SscEngine::onError(int error, Source src) {
     LOGW("ssc error src=%d err=%d", (int)src, error);
@@ -400,8 +450,7 @@ void SscEngine::onEvent(const uint8_t* data, size_t size, uint64_t ts, Source sr
         std::lock_guard<std::mutex> lk(mLock);
         mSources[src].lastEventNs = now;
         mSources[src].eventCount++;
-        mSources[src].quietSends = 0;
-        if (mSources[src].eventCount <= 6) {
+            if (mSources[src].eventCount <= 6) {
             char hex[3 * 48 + 1];
             size_t n = size < 48 ? size : 48;
             for (size_t i = 0; i < n; i++) snprintf(hex + 3 * i, 4, "%02x ", data[i]);
@@ -479,86 +528,131 @@ void SscEngine::onEvent(const uint8_t* data, size_t size, uint64_t ts, Source sr
 }
 void SscEngine::watchdogLoop() {
     int64_t lastStats = nowNs();
-    while (mRun) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        if (!mRun) break;
-        const int64_t now = nowNs();
-        std::lock_guard<std::mutex> lk(mLock);
-        if (now - lastStats > 30LL * 1000000000) {
-            lastStats = now;
-            LOGI("stats: light(%s) events=%lld last=%lldms raw=%.0f lux=%.1f (mul %.3f ovr %.1f) | raw(%s) events=%lld last=%lldms ago",
-                 mSources[kSourceLight].active ? "on" : "off",
-                 (long long)mSources[kSourceLight].eventCount,
-                 (long long)(mSources[kSourceLight].lastEventNs
-                                     ? (now - mSources[kSourceLight].lastEventNs) / 1000000
-                                     : -1),
-                 (double)mSources[kSourceLight].lastRaw,
-                 (double)mSources[kSourceLight].lastLux, (double)gScaleMul,
-                 (double)gLuxOverride,
-                 mSources[kSourceRaw].active ? "on" : "off",
-                 (long long)mSources[kSourceRaw].eventCount,
-                 (long long)(mSources[kSourceRaw].lastEventNs
-                                     ? (now - mSources[kSourceRaw].lastEventNs) / 1000000
-                                     : -1));
-        }
-        for (int i = 0; i < kSourceCount; i++) {
-            SourceState& s = mSources[i];
-            if (!s.active || !s.configured) continue;
-            const int64_t interval =
-                    (now < s.fastUntilNs) ? kFastHeartbeatNs : kSlowHeartbeatNs;
-            if (now - s.lastSendNs < interval) continue;
-            sendConfig((Source)i, true);
-            s.lastSendNs = now;
-            s.quietSends++;
-            if (s.quietSends >= kHealthRecreateQuietSends) {
-                LOGW("src=%d produced no samples for %lld heartbeats, rebuilding ssc_interface",
-                     i, (long long)s.quietSends);
-                rebuildInterface();
-                s.quietSends = 0;
-                s.lastEventNs = now;
-                break;
+    struct Job {
+        Source src;
+        bool enable;
+        bool stateChange;
+    };
+    while (true) {
+        Job jobs[kSourceCount];
+        int nJobs = 0;
+        bool rebuild = false;
+        bool rearmNeeded = false;
+        {
+            std::unique_lock<std::mutex> lk(mLock);
+            mWake.wait_for(lk, std::chrono::nanoseconds(kWatchdogTickNs),
+                           [this] { return mKick || !mRun; });
+            mKick = false;
+            if (!mRun) break;
+            const int64_t now = nowNs();
+            if (now - lastStats > 30LL * 1000000000) {
+                lastStats = now;
+                logStatsLocked(now);
+            }
+            for (int i = 0; i < kSourceCount; i++) {
+                SourceState& s = mSources[i];
+                if (s.configured != s.active) {
+                    jobs[nJobs].src = (Source)i;
+                    jobs[nJobs].enable = s.active;
+                    jobs[nJobs].stateChange = true;
+                    nJobs++;
+                    continue;
+                }
+                if (!s.active || !s.configured) continue;
+                const int64_t interval =
+                        (now < s.fastUntilNs) ? kFastHeartbeatNs : kSlowHeartbeatNs;
+                if (now - s.lastSendNs < interval) continue;
+                jobs[nJobs].src = (Source)i;
+                jobs[nJobs].enable = true;
+                jobs[nJobs].stateChange = false;
+                nJobs++;
+                s.lastSendNs = now;
+                if (i == kSourceRaw && s.eventCount >= kMinHealthEvents &&
+                    now - s.lastEventNs > kQuietWindowNs) {
+                    const int64_t silent_ms = (now - s.lastEventNs) / 1000000;
+                    s.lastEventNs = now;
+                    if (s.healthFails == 0) {
+                        s.healthFails = 1;
+                        rearmNeeded = true;
+                        LOGW("src=%d: no samples for %lld ms (%lld total), re-sending config",
+                             (int)i, (long long)silent_ms, (long long)s.eventCount);
+                    } else if (s.healthFails == 1 && mRebuilds.load() < kMaxRebuilds &&
+                               (mLastRebuildNs.load() == 0 ||
+                                now - mLastRebuildNs.load() >= kRebuildMinIntervalNs)) {
+                        s.healthFails = 2;
+                        rebuild = true;
+                    } else if (s.healthFails < 3) {
+                        s.healthFails = 3;
+                        LOGE("src=%d: stream dead after %d rebuild(s), giving up until reactivated",
+                             (int)i, mRebuilds.load());
+                    }
+                    continue;
+                }
             }
         }
+        for (int j = 0; j < nJobs; j++) {
+            if (jobs[j].stateChange) {
+                applySource(jobs[j].src, jobs[j].enable);
+            } else {
+                sendConfig(jobs[j].src, jobs[j].enable);
+            }
+        }
+        if (rearmNeeded) rearm("quiet-source");
+        if (rebuild) rebuildInterface();
     }
 }
 void SscEngine::rebuildInterface() {
-    if (mIface != nullptr) {
-        void** vt = *(void***)mIface;
-        typedef void (*DtorFn)(void*);
-        ((DtorFn)vt[3])(mIface);
-        mIface = nullptr;
-    }
+    if (mRebuilds.load() >= kMaxRebuilds) return;
+    std::lock_guard<std::mutex> send(mSendLock);
+    if (mRebuilds.load() >= kMaxRebuilds) return;
+    const int64_t now = nowNs();
     typedef void* (*CreateFn)(uint32_t, void*);
-    mIface = ((CreateFn)mCreateFn)(0, nullptr);
-    if (mIface == nullptr) {
+    void* iface = ((CreateFn)mCreateFn)(0, nullptr);
+    if (iface == nullptr) {
         LOGE("rebuildInterface: create failed");
+        std::lock_guard<std::mutex> lk(mLock);
+        for (int k = 0; k < kSourceCount; k++) {
+            if (mSources[k].active) mSources[k].configured = false;
+        }
         return;
     }
-    void** vt = *(void***)mIface;
-    mRegisterCbFn = vt[0];
-    mSendRequestFn = vt[1];
-    typedef void (*RegisterCbFn)(void*, sensor_uid, std::function<void(uint32_t, uint64_t)>,
-                                 std::function<void(int)>,
-                                 std::function<void(const uint8_t*, size_t, uint64_t)>);
+    const int n = mRebuilds.fetch_add(1) + 1;
+    mLastRebuildNs.store(now);
+    void* previous = mIface;
+    mIface = iface;
+    const uint32_t gen = mGeneration.fetch_add(1) + 1;
+    registerCallbacksLocked(iface, gen);
+    LOGI("rebuild %d/%d: new ssc_interface %p (gen %u), previous %p deliberately leaked",
+         n, (int)kMaxRebuilds, iface, gen, previous);
     for (int k = 0; k < kSourceCount; k++) {
-        ((RegisterCbFn)mRegisterCbFn)(mIface, mSources[k].suid, mRespCb[k], mErrCb[k], mEvtCb[k]);
-    }
-    for (int k = 0; k < kSourceCount; k++) {
-        if (mSources[k].active) sendConfig((Source)k, true);
+        bool active;
+        {
+            std::lock_guard<std::mutex> lk(mLock);
+            active = mSources[k].active;
+        }
+        if (!active) continue;
+        const bool ok = sendConfigLocked((Source)k, true);
+        std::lock_guard<std::mutex> lk(mLock);
+        mSources[k].configured = ok;
+        if (ok) {
+            mSources[k].lastSendNs = nowNs();
+            mSources[k].lastEventNs = nowNs();
+            mSources[k].fastUntilNs = nowNs() + kBootstrapNs;
+        }
     }
 }
 void SscEngine::shutdown() {
     if (!mStarted) return;
-    mRun = false;
+    {
+        std::lock_guard<std::mutex> lk(mLock);
+        mRun = false;
+        mWake.notify_all();
+    }
     if (mWatchdog.joinable()) mWatchdog.join();
     for (int i = 0; i < kSourceCount; i++) {
         if (mSources[i].configured) sendConfig((Source)i, false);
     }
-    if (mIface != nullptr) {
-        void** vt = *(void***)mIface;
-        typedef void (*DtorFn)(void*);
-        ((DtorFn)vt[3])(mIface);
-        mIface = nullptr;
-    }
+    mIface = nullptr;
+    mSendRequestFn = nullptr;
     mStarted = false;
 }

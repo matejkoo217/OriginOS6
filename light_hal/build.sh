@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 NDK=${NDK:-/home/jkoo/Android/Sdk/ndk/29.0.14206865}
 CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
-DEVLIB=$ROOT/../../fod/device_libs
+DEVLIB=$ROOT/device_libs
 OUT=$ROOT/build
 mkdir -p "$OUT"
 

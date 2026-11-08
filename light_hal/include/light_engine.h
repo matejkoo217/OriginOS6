@@ -3,6 +3,7 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -40,20 +41,25 @@ class SscEngine {
         int64_t lastEventNs = 0;
         int64_t lastSendNs = 0;
         int64_t fastUntilNs = 0;
-        int64_t quietSends = 0;
         int64_t eventCount = 0;
+        int healthFails = 0;
         float lastRaw = 0.0f;
         float lastLux = 0.0f;
     };
     void watchdogLoop();
     void rebuildInterface();
+    void registerCallbacksLocked(void* iface, uint32_t gen);
     void onResponse(uint32_t msgId, uint64_t ts, Source src);
     void onError(int error, Source src);
     void onEvent(const uint8_t* data, size_t size, uint64_t ts, Source src);
+    bool applySource(Source src, bool enable);
     bool sendConfig(Source src, bool enable);
+    bool sendConfigLocked(Source src, bool enable);
     bool sendRequest(Source src, const std::string& msg);
     void maybeEnableFallback(Source stalled);
-    void configureSource(Source src, bool active, const char* why);
+    void updateDesiredLocked(const char* why);
+    void kickLocked();
+    void logStatsLocked(int64_t now);
     static std::string buildRequest(const sensor_uid& suid, uint32_t msgId, bool withRate, float rateHz);
     std::string decodeError() const;
     void* mLibHandle = nullptr;
@@ -70,6 +76,12 @@ class SscEngine {
     bool mLightClient = false;
     bool mRawClient = false;
     std::mutex mLock;
+    std::mutex mSendLock;
+    std::condition_variable mWake;
+    bool mKick = false;
+    std::atomic<uint32_t> mGeneration{0};
+    std::atomic<int> mRebuilds{0};
+    std::atomic<int64_t> mLastRebuildNs{0};
     std::thread mWatchdog;
     std::atomic<bool> mRun{false};
     std::atomic<bool> mStarted{false};

@@ -95,8 +95,11 @@ void onEngineEvent(int32_t type, const float* values, int count, int64_t tsNs) {
         }
         postSensorEvent(kLightHandle, kLightType, values, 1, tsNs);
     } else if (type == kRawType) {
-        std::lock_guard<std::mutex> lk(gStateLock);
-        if (gRawActive) postSensorEvent(kRawHandle, kRawType, values, count, tsNs);
+        {
+            std::lock_guard<std::mutex> lk(gStateLock);
+            if (!gRawActive) return;
+        }
+        postSensorEvent(kRawHandle, kRawType, values, count, tsNs);
     }
 }
 SensorInfo makeLightInfo() {
@@ -150,20 +153,21 @@ Return<Result> subhal_set_operation_mode(void* self, int32_t mode) {
 Return<Result> subhal_activate(void* self, int32_t handle, bool enable) {
     LOGI("activate handle=0x%x enable=%d", handle, (int)enable);
     if (handle == kLightHandle) {
-        std::lock_guard<std::mutex> lk(gStateLock);
-        gLightActive = enable;
-        gLastCalibratedNs = 0;
-        gLastLightPostNs = 0;
+        {
+            std::lock_guard<std::mutex> lk(gStateLock);
+            gLightActive = enable;
+            gLastCalibratedNs = 0;
+            gLastLightPostNs = 0;
+        }
+        gEngine.setSensorActive(kLightType, enable);
     } else if (handle == kRawHandle) {
-        std::lock_guard<std::mutex> lk(gStateLock);
-        gRawActive = enable;
+        {
+            std::lock_guard<std::mutex> lk(gStateLock);
+            gRawActive = enable;
+        }
+        gEngine.setSensorActive(kRawType, enable);
     } else {
         return Result::BAD_VALUE;
-    }
-    if (handle == kLightHandle) {
-        gEngine.setSensorActive(kLightType, enable);
-    } else {
-        gEngine.setSensorActive(kRawType, enable);
     }
     return Result::OK;
 }
