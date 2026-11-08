@@ -1,27 +1,5 @@
-# Settings "About phone" iQOO-branding hook.
-#
-# abouthookd watches for the com.android.settings process and injects
-# libabouthook.so (LSPlant) so the About page stops drawing the iQOO
-# logo/prefix while ro.vivo.product.series stays IQOO.
-#
-# Binary + rc live in /vendor (domain/exec label come from the vendor policy you
-# already merge, exactly like fod_bridge). The payload libs live in a private
-# /vendor/framework/abouthook/ subdir labelled system_file (so the Settings
-# process, system_app, can map them without a policy change) and are loaded by
-# fd, so they are never added to the global namespace and cannot shadow the
-# platform libs. /vendor/framework is one of the app namespace's permitted
-# paths, unlike /vendor/lib64.
-
 service abouthookd /vendor/bin/abouthookd com.android.settings /vendor/framework/abouthook/libc++_shared.so /vendor/framework/abouthook/libdobby.so /vendor/framework/abouthook/liblsplant.so /vendor/framework/abouthook/libabouthook.so
     class late_start
     user root
     group root system
     seclabel u:r:abouthookd:s0
-    # not oneshot: the injector loops and re-injects on every Settings restart
-
-# fp_config.conf geometry override (Xiaomi 13 FOD position).
-# The static fstab "overlay" entry is ignored by this port's fs_mgr, so mount
-# it with init's mount builtin instead. /system/etc already exists, so this is
-# a directory overlay: /vendor/etc/fp_overlay sits on top of /system/etc.
-on late-fs
-    mount overlay overlay /system/etc ro lowerdir=/vendor/etc/fp_overlay:/system/etc
