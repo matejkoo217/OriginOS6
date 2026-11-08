@@ -23,6 +23,7 @@ vendor:
 lib64/vendor.aac.hardware.vibrator.custom.impl.so
 lib64/libVibratorTool.so
 lib64/vendor.aac.hardware.richtap.vibrator-V3-ndk.so
+firmware/*.bin
 ```
 
 odm:
@@ -45,3 +46,5 @@ persist.sys.vivo.support.double.lra=0
 ```
 
 you can skip the vendor ones if the system build.prop already provides them
+
+For the ringtone haptics you need to use vivos audio stack, guide on doing so is in audio folder.
