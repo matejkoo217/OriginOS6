@@ -33,11 +33,12 @@ semantics are confirmed.
 
 `/sys/class/power_supply/battery/`: `chg_type`, `fg_passed_charge`,
 `soc_decimal`, `engine`, `charging_speed`, `board_temp_state`,
-`primary_board_temp`.
+`primary_board_temp`, `low_chg_temp_thre`.
 `/sys/class/power_supply/usb/`: `present`.
 `/sys/class/fuelsummary/`: `amount`, `age_amount`, `amount_total`, `cycle`,
-`roll_current`, `soh`.
-`/sys/class/cms_class/`: 94 nodes.
+`roll_current`, `soh`, `data`, `data_ex`, `item`, `item_ex`, `tshell_hw_net`,
+`tshell_node`, `tshell_ntc`, `tshell_ntc_reg`, `tshells`, `tsubset_name`.
+`/sys/class/cms_class/`: 106 nodes (97 `cms_node` entries + 9 class attrs).
 
 Derived from real QTI state:
 | node | source |
@@ -49,6 +50,7 @@ Derived from real QTI state:
 | `primary_board_temp` | `qcom-battery/connector_temp` (0.1 °C, raw) |
 | `md_status` / `md_scene` / `md_data` | `qcom-battery/moisture_detection_status` |
 | `fuelsummary/soh`, `ui_soh`, `aging_soh` | `qcom-battery/soh` (83 on this unit), else aged/design capacity |
+| `usb/present` | `usb/online` **or** `qcom-battery/typec_mode` starts with "Source" | the health HAL derives `chargerUsbOnline` from it; VBUS drops during a PD contract change (5 V->9 V) while the CC state stays "Source attached", so the node must not follow `online` or the framework sees `plugged=0` and hides the charge indicator |
 | `bat_wpc_tx_chg_state`, `wls_otg_status` | `reverse_chg_mode` **or** `wireless_boost_en` ≠ 0 → `1` |
 | `bat_wpc_tx_to_tx_state` | `reverse_chg_mode` ≠ 0 **and** `reverse_chg_state` = 0 → `1` |
 | `weakcharger` | usb `CURRENT_MAX` ≤ 500 mA while online |
@@ -60,6 +62,26 @@ Derived from real QTI state:
 value latches.  After one `wireless_boost_en=1 → 0` cycle it stays `2` while
 mode/boost/`WLS_FW_STATE` are all 0, which would keep the framework's
 reverse-charging dialog up forever.
+
+### New nodes added 2026-11-11
+
+All of these are read-only (`0444`); the inert ones report the literal `0`
+rather than an empty string so a consumer that parses the value as an int gets
+`0` instead of a parse error.
+
+| node | real / inert | source |
+|---|---|---|
+| `cms_class/debug_info` | **real** | one line built from live state: `engine=<tier> usb=<type> adapter_power_mw=<V*I> battery_temp=<0.1 C> connector_temp=<0.1 C>` |
+| `cms_class/fbon_discharge_temp` | **real** | battery `POWER_SUPPLY_PROP_TEMP` (0.1 °C) |
+| `cms_class/debug_test1`, `debug_test2`, `debug_test3` | inert | constant `0`: engineer-mode hooks of vivo's own cms driver; nothing on this platform writes or reads them |
+| `cms_class/table_item`, `table_title` | inert | constant `0`: vivo debug table title/rows; the real content is built inside their driver and its format is unknown |
+| `power_supply/battery/low_chg_temp_thre` | inert | queried from `POWER_SUPPLY_PROP_TEMP_ALERT_MIN`; this 5.15 kernel has no `POWER_SUPPLY_PROP_TEMP_COLD_HARD_LIMIT` and `qti_battery_charger` implements neither, so it reads `0`. The node becomes real by itself if the charger stack ever exposes the property |
+| `fuelsummary/tshell_ntc`, `tshell_ntc_reg` | **real** | `qcom-battery/connector_temp` (0.1 °C) - the connector NTC reading |
+| `fuelsummary/data`, `data_ex`, `item`, `item_ex` | inert | `0`: FuelSummary payload blobs; the wire format is not known, so nothing is synthesised |
+| `fuelsummary/tshell_hw_net`, `tshell_node`, `tshells`, `tsubset_name` | inert | `0`: vivo test-shell bookkeeping, no source on this platform |
+
+`adapter_power` and `debug_info` share one helper (`adapter_power_mw()`), so the
+`V*I` computation exists only once; the reported watts are unchanged.
 
 ## Reverse wireless charging
 

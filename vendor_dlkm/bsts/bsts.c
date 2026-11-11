@@ -11,8 +11,10 @@
  *   /sys/class/power_supply/battery/charging_speed
  *   /sys/class/power_supply/battery/board_temp_state
  *   /sys/class/power_supply/battery/primary_board_temp
+ *   /sys/class/power_supply/battery/low_chg_temp_thre
  *   /sys/class/power_supply/usb/present
  *   /sys/class/cms_class/...         (engine, adapter_power, mode flags)
+ *   /sys/class/fuelsummary/...       (gauge summary read by FuelSummary)
  *
  * The battery nodes feed the vivo health HAL (from the OriginOS vendor),
  * which packs them into the vendor bitfields of HealthInfo.  The cms_class
@@ -77,6 +79,7 @@ static bool have_primary_board_temp;
 static bool have_fg_raw_soc;
 static bool have_charge_avg;
 static bool have_usb_present;
+static bool have_low_chg_temp_thre;
 static struct class *cms_class;
 static struct class *fuelsummary_class;
 static int battery_soh(void)
@@ -140,6 +143,22 @@ static ssize_t chg_type_show(struct device *dev,
 	return sysfs_emit(buf, "%s\n", name);
 }
 static DEVICE_ATTR_RO(chg_type);
+static bool typec_source_attached(void)
+{
+	struct file *f;
+	char buf[64];
+	ssize_t n;
+	loff_t pos = 0;
+	f = filp_open(QCOM_BATT_PATH("typec_mode"), O_RDONLY, 0);
+	if (IS_ERR(f))
+		return false;
+	n = kernel_read(f, buf, sizeof(buf) - 1, &pos);
+	filp_close(f, NULL);
+	if (n <= 0)
+		return false;
+	buf[n] = '\0';
+	return !strncmp(buf, "Source", 6);
+}
 static ssize_t usb_present_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -154,6 +173,8 @@ static ssize_t usb_present_show(struct device *dev,
 			present = !!val.intval;
 	}
 	mutex_unlock(&compat_lock);
+	if (!present && typec_source_attached())
+		present = 1;
 	return sysfs_emit(buf, "%d\n", present);
 }
 static DEVICE_ATTR(present, 0444, usb_present_show, NULL);
@@ -304,11 +325,11 @@ static struct class_attribute cms_engine_attr = {
 	.attr = { .name = "engine", .mode = 0444 },
 	.show = cms_engine_show,
 };
-static ssize_t cms_adapter_power_show(struct class *cls, struct class_attribute *attr, char *buf)
+static u64 adapter_power_mw(void)
 {
 	union power_supply_propval v = { 0 };
 	union power_supply_propval i = { 0 };
-	u64 watts = 0;
+	u64 uw = 0;
 	mutex_lock(&compat_lock);
 	if (usb_psy &&
 	    !power_supply_get_property(usb_psy,
@@ -316,10 +337,13 @@ static ssize_t cms_adapter_power_show(struct class *cls, struct class_attribute 
 	    !power_supply_get_property(usb_psy,
 			POWER_SUPPLY_PROP_CURRENT_NOW, &i) &&
 	    v.intval > 0 && i.intval > 0)
-		watts = div_u64((u64)(v.intval / 1000) * (i.intval / 1000),
-				1000000);
+		uw = div_u64((u64)v.intval * i.intval, 1000000);
 	mutex_unlock(&compat_lock);
-	return sysfs_emit(buf, "%llu\n", watts);
+	return uw / 1000;
+}
+static ssize_t cms_adapter_power_show(struct class *cls, struct class_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%llu\n", adapter_power_mw() / 1000);
 }
 static struct class_attribute cms_adapter_power_attr = {
 	.attr = { .name = "adapter_power", .mode = 0444 },
@@ -531,7 +555,7 @@ static int abx_lookup_int(const char *path, const char *key)
 	f = filp_open(path, O_RDONLY, 0);
 	if (IS_ERR(f))
 		return -1;
-	buf = kmalloc(SETTINGS_MAX_READ, GFP_KERNEL);
+	buf = kvmalloc(SETTINGS_MAX_READ, GFP_KERNEL);
 	if (!buf) {
 		filp_close(f, NULL);
 		return -1;
@@ -566,7 +590,7 @@ static int abx_lookup_int(const char *path, const char *key)
 		}
 	}
 out:
-	kfree(buf);
+	kvfree(buf);
 	return ret;
 }
 static int settings_target(void)
@@ -716,8 +740,7 @@ static void wls_tx_request(char *val)
 	mod_delayed_work(system_wq, &wls_tx_work, 0);
 	mod_delayed_work(system_wq, &wls_poll_work, msecs_to_jiffies(200));
 }
-static ssize_t cms_wls_otg_status_show(struct class *cls,
-		struct class_attribute *attr, char *buf)
+static ssize_t cms_wls_otg_status_show(struct class *cls, struct class_attribute *attr, char *buf)
 {
 	return sysfs_emit(buf, "%d\n", wls_tx_enabled());
 }
@@ -725,8 +748,7 @@ static struct class_attribute cms_wls_otg_status_attr = {
 	.attr = { .name = "wls_otg_status", .mode = 0444 },
 	.show = cms_wls_otg_status_show,
 };
-static ssize_t cms_md_status_show(struct class *cls,
-		struct class_attribute *attr, char *buf)
+static ssize_t cms_md_status_show(struct class *cls, struct class_attribute *attr, char *buf)
 {
 	int v = qcom_batt_read_int(QCOM_BATT_PATH("moisture_detection_status"));
 	if (v < 0)
@@ -739,8 +761,7 @@ static struct class_attribute cms_md_status_attr = {
 	.attr = { .name = "md_status", .mode = 0444 },
 	.show = cms_md_status_show,
 };
-static ssize_t cms_bat_wpc_tx_chg_state_show(struct class *cls,
-		struct class_attribute *attr, char *buf)
+static ssize_t cms_bat_wpc_tx_chg_state_show(struct class *cls, struct class_attribute *attr, char *buf)
 {
 	return sysfs_emit(buf, "%d\n", wls_tx_enabled());
 }
@@ -748,8 +769,7 @@ static struct class_attribute cms_bat_wpc_tx_chg_state_attr = {
 	.attr = { .name = "bat_wpc_tx_chg_state", .mode = 0444 },
 	.show = cms_bat_wpc_tx_chg_state_show,
 };
-static ssize_t cms_bat_wpc_tx_to_tx_state_show(struct class *cls,
-		struct class_attribute *attr, char *buf)
+static ssize_t cms_bat_wpc_tx_to_tx_state_show(struct class *cls, struct class_attribute *attr, char *buf)
 {
 	int mode = qcom_batt_read_int(QCOM_BATT_PATH("reverse_chg_mode"));
 	int state = qcom_batt_read_int(QCOM_BATT_PATH("reverse_chg_state"));
@@ -939,6 +959,14 @@ static int so_ver_show(char *buf, size_t len)
 {
 	return scnprintf(buf, len, "3\n");
 }
+static int debug_info_show(char *buf, size_t len)
+{
+	return scnprintf(buf, len,
+		"engine=%d usb=%s adapter_power_mw=%llu battery_temp=%d connector_temp=%d\n",
+		derive_engine(), usb_type_str(), adapter_power_mw(),
+		ps_read_int(&battery_psy, POWER_SUPPLY_PROP_TEMP, 0),
+		read_file_int(QCOM_BATT_PATH("connector_temp"), 0));
+}
 #define VIVO_HEALTH_BATT_OT	0x0002
 #define VIVO_HEALTH_BATT_OV	0x0008
 #define VIVO_HEALTH_TEMP_LOW 0x0020
@@ -970,6 +998,7 @@ static struct cms_node cms_nodes[] = {
 	CMS_QCOM("primary_board_temp", "connector_temp", 0, 0),
 	CMS_PS("vcell1_voltage", &battery_psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, 1000),
 	CMS_CONST("vcell2_voltage", 0),	/* fuxi is single-cell */
+	CMS_PS("fbon_discharge_temp", &battery_psy, POWER_SUPPLY_PROP_TEMP, 0),
 	CMS_FN("coulomb", coulomb_show),
 	CMS_PS("cycle", &battery_psy, POWER_SUPPLY_PROP_CYCLE_COUNT, 0),
 	CMS_PS("health", &battery_psy, POWER_SUPPLY_PROP_HEALTH, 0),
@@ -990,7 +1019,6 @@ static struct cms_node cms_nodes[] = {
 	CMS_STRFILE("batid", BATTERY_MODEL_PATH),
 	CMS_STOREFILE("backlight_brightness", 0664, 1000, 1000, BACKLIGHT_BRIGHTNESS_PATH),
 	CMS_ROS("predict_chg_time_data"),
-	/* ---- telemetry blobs the FuelSummary/HAL read (driver-filled) ---- */
 	CMS_ROS("adapter_error_code2_bigdata_info"),
 	CMS_ROS("battery_health_info"),
 	CMS_ROS("battery_r_bigdata_info"),
@@ -1028,6 +1056,12 @@ static struct cms_node cms_nodes[] = {
 	CMS_RW_D("soh_life_loss", 0664, 1000, 1000, "0 0"),
 	CMS_RW_D("soh_ver_transition", 0664, 1000, 1000, "3"),
 	CMS_FN("so_ver", so_ver_show),
+	CMS_FN("debug_info", debug_info_show),
+	CMS_CONST("debug_test1", 0), //engineer-mode useless
+	CMS_CONST("debug_test2", 0), //engineer-mode useless
+	CMS_CONST("debug_test3", 0), //engineer-mode useless
+	CMS_CONST("table_item", 0),
+	CMS_CONST("table_title", 0),
 	CMS_RW("battery_health_framework_flag", 0664, 1000, 1000),
 	CMS_RW("soh_test", 0664, 1000, 1000),
 	CMS_RW("soh_test_ocv_soc", 0664, 1000, 1000),
@@ -1118,7 +1152,6 @@ static ssize_t cms_node_store(struct class *cls, struct class_attribute *attr, c
 		wls_tx_request(n->storage);
 	if (!strcmp(n->cattr.attr.name, "game_bypass_charge_flag")) {
 		int v = 0;
-
 		if (kstrtoint(n->storage, 10, &v))
 			v = 0;
 		bypass_apply(v > 0);
@@ -1142,7 +1175,9 @@ static void cms_chown(const char *name, int uid, int gid)
 		return;
 	if (kern_path(full, LOOKUP_FOLLOW, &path))
 		return;
+	inode_lock(d_inode(path.dentry));
 	notify_change(&init_user_ns, path.dentry, &newattrs, NULL);
+	inode_unlock(d_inode(path.dentry));
 	path_put(&path);
 }
 static void cms_nodes_create(void)
@@ -1245,8 +1280,25 @@ static ssize_t fuelsummary_soh_show(struct class *cls, struct class_attribute *a
 {
 	return sysfs_emit(buf, "%d\n", battery_soh());
 }
-
+static ssize_t fuelsummary_tshell_ntc_show(struct class *cls, struct class_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%d\n", read_file_int(QCOM_BATT_PATH("connector_temp"), 0));
+}
+static ssize_t fuelsummary_tshell_ntc_reg_show(struct class *cls, struct class_attribute *attr, char *buf)
+{
+	return fuelsummary_tshell_ntc_show(cls, attr, buf);
+}
 #define FUELSUM_ATTR_RO(_name)						\
+static struct class_attribute fuelsummary_##_name##_attr = {		\
+	.attr = { .name = __stringify(_name), .mode = 0444 },		\
+	.show = fuelsummary_##_name##_show,				\
+}
+#define FUELSUM_ATTR_RO_ZERO(_name)					\
+static ssize_t fuelsummary_##_name##_show(struct class *cls,		\
+		struct class_attribute *attr, char *buf)		\
+{									\
+	return sysfs_emit(buf, "0\n");					\
+}									\
 static struct class_attribute fuelsummary_##_name##_attr = {		\
 	.attr = { .name = __stringify(_name), .mode = 0444 },		\
 	.show = fuelsummary_##_name##_show,				\
@@ -1257,6 +1309,16 @@ FUELSUM_ATTR_RO(amount_total);
 FUELSUM_ATTR_RO(cycle);
 FUELSUM_ATTR_RO(roll_current);
 FUELSUM_ATTR_RO(soh);
+FUELSUM_ATTR_RO(tshell_ntc);
+FUELSUM_ATTR_RO(tshell_ntc_reg);
+FUELSUM_ATTR_RO_ZERO(data);
+FUELSUM_ATTR_RO_ZERO(data_ex);
+FUELSUM_ATTR_RO_ZERO(item);
+FUELSUM_ATTR_RO_ZERO(item_ex);
+FUELSUM_ATTR_RO_ZERO(tshell_hw_net);
+FUELSUM_ATTR_RO_ZERO(tshell_node);
+FUELSUM_ATTR_RO_ZERO(tshells);
+FUELSUM_ATTR_RO_ZERO(tsubset_name);
 static struct class_attribute *fuelsummary_attrs[] = {
 	&fuelsummary_amount_attr,
 	&fuelsummary_age_amount_attr,
@@ -1264,6 +1326,16 @@ static struct class_attribute *fuelsummary_attrs[] = {
 	&fuelsummary_cycle_attr,
 	&fuelsummary_roll_current_attr,
 	&fuelsummary_soh_attr,
+	&fuelsummary_tshell_ntc_attr,
+	&fuelsummary_tshell_ntc_reg_attr,
+	&fuelsummary_data_attr,
+	&fuelsummary_data_ex_attr,
+	&fuelsummary_item_attr,
+	&fuelsummary_item_ex_attr,
+	&fuelsummary_tshell_hw_net_attr,
+	&fuelsummary_tshell_node_attr,
+	&fuelsummary_tshells_attr,
+	&fuelsummary_tsubset_name_attr,
 };
 static void fuelsummary_class_create(void)
 {
@@ -1284,8 +1356,15 @@ static void fuelsummary_class_create(void)
 				fuelsummary_attrs[i]->attr.name, rc);
 	}
 }
-static int bsts_add_file(struct device *dev, struct device_attribute *attr,
-		bool *created)
+static ssize_t low_chg_temp_thre_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int val;
+	if (battery_read_prop(POWER_SUPPLY_PROP_TEMP_ALERT_MIN, &val))
+		return sysfs_emit(buf, "0\n");
+	return sysfs_emit(buf, "%d\n", val);
+}
+static DEVICE_ATTR_RO(low_chg_temp_thre);
+static int bsts_add_file(struct device *dev, struct device_attribute *attr, bool *created)
 {
 	int rc = device_create_file(dev, attr);
 	if (rc == -EEXIST) {
@@ -1351,6 +1430,10 @@ static int add_attrs(void)
 			&have_charge_avg);
 	if (rc)
 		goto err;
+	rc = bsts_add_file(&battery_psy->dev, &dev_attr_low_chg_temp_thre,
+			&have_low_chg_temp_thre);
+	if (rc)
+		goto err;
 	rc = bsts_add_file(&usb_psy->dev, &dev_attr_present,
 			&have_usb_present);
 	if (rc)
@@ -1370,6 +1453,9 @@ static void remove_attrs(void)
 		usb_psy = NULL;
 	}
 	if (battery_psy) {
+		if (have_low_chg_temp_thre)
+			device_remove_file(&battery_psy->dev,
+				&dev_attr_low_chg_temp_thre);
 		if (have_charge_avg)
 			device_remove_file(&battery_psy->dev,
 				&dev_attr_charge_avg);
@@ -1418,6 +1504,7 @@ static void remove_attrs(void)
 	have_fg_raw_soc = false;
 	have_charge_avg = false;
 	have_usb_present = false;
+	have_low_chg_temp_thre = false;
 }
 static void bsts_probe_work(struct work_struct *work)
 {
@@ -1466,7 +1553,6 @@ static void __exit bsts_exit(void)
 	cancel_delayed_work_sync(&bypass_work);
 	if (READ_ONCE(bypass_applied) > 0) {
 		char path[128];
-
 		snprintf(path, sizeof(path), QCOM_BATT_FMT, "restrict_chg");
 		write_int_file(path, 0);
 	}
