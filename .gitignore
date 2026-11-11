@@ -35,3 +35,5 @@ overlays/VivoFrameworksResRRO.apk.idsig
 /light_hal/fuxi
 /smart_screen_on/build
 /audio/fuxi
+*.symversions
+*.d
