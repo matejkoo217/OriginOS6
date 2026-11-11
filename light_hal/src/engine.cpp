@@ -18,6 +18,7 @@
 
 namespace {
 constexpr char kCreateSymbol[] = "_ZN13ssc_interface6createE19ssc_connection_type15ssc_conn_config";
+constexpr char kDestroySymbol[] = "_ZN13ssc_interfaceD0Ev";
 constexpr sensor_uid kLightSuid = {1103175175223494815ULL, 14038004250674766477ULL};
 constexpr sensor_uid kRawSuid = {17238055035138963352ULL, 6315905935778584253ULL};
 constexpr uint32_t kMsgSensorConfig = 513;
@@ -25,6 +26,7 @@ constexpr uint32_t kMsgOnChangeConfig = 514;
 constexpr uint32_t kMsgDisable = 10;
 constexpr uint32_t kMsgStdSensorEvent = 1025;
 constexpr uint32_t kMsgStdSensorConfigEvent = 513;
+constexpr float kStreamRateHz = 20.0f;
 
 uint32_t gLightMsgId = kMsgOnChangeConfig;
 uint32_t gRawMsgId = kMsgOnChangeConfig;
@@ -36,8 +38,6 @@ void loadEnvOverrides() {
     if ((v = getenv("LIGHT_HAL_RAW_MSGID")) != nullptr) gRawMsgId = (uint32_t)atoi(v);
     if ((v = getenv("LIGHT_HAL_DELIVERY")) != nullptr) gDelivery = (uint32_t)atoi(v);
 }
-constexpr float kStreamRateHz = 20.0f;
-//setprop persist.vendor.light_hal.scale_mul <f>   # fine tuning (default 1)
 int64_t nowNs() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::steady_clock::now().time_since_epoch())
@@ -108,6 +108,7 @@ constexpr int64_t kMinHealthEvents = 5;
 constexpr int64_t kQuietWindowNs = 10LL * 1000000000;
 constexpr int kMaxRebuilds = 3;
 constexpr int64_t kRebuildMinIntervalNs = 60LL * 1000000000;
+constexpr int64_t kDeadRetryNs = 300LL * 1000000000;
 
 void putVarint(std::string& out, uint64_t v) {
     while (v >= 0x80) {
@@ -301,6 +302,11 @@ bool SscEngine::init() {
         LOGE("dlsym create failed: %s", dlerror());
         return false;
     }
+    mDestroyFn = dlsym(mLibHandle, kDestroySymbol);
+    if (mDestroyFn == nullptr) {
+        LOGW("dlsym %s failed: %s -- rebuilds will leak ssc sessions", kDestroySymbol,
+             dlerror());
+    }
     typedef void* (*CreateFn)(uint32_t, void*);
     mIface = ((CreateFn)mCreateFn)(0, nullptr);
     if (mIface == nullptr) {
@@ -350,6 +356,9 @@ void SscEngine::updateDesiredLocked(const char* why) {
     if (l.active != light) {
         l.active = light;
         l.healthFails = 0;
+        if (light) {
+            mRebuilds.store(0, std::memory_order_relaxed);
+        }
         LOGI("configureSource src=0 active=%d (%s)", (int)light, why);
     }
     SourceState& r = mSources[kSourceRaw];
@@ -381,6 +390,15 @@ void SscEngine::rearm(const char* why) {
     LOGI("rearm (%s)", why);
     kickLocked();
 }
+void SscEngine::maybeEnableFallback(Source stalled) {
+    if (stalled != kSourceRaw) return;
+    bool expected = false;
+    if (!mFallback.compare_exchange_strong(expected, true, std::memory_order_relaxed)) return;
+    std::lock_guard<std::mutex> lk(mLock);
+    LOGW("enabling light-source lux fallback (light client=%d)", (int)mLightClient);
+    updateDesiredLocked("raw-fallback");
+}
+
 bool SscEngine::applySource(Source src, bool enable) {
     const bool ok = sendConfig(src, enable);
     std::lock_guard<std::mutex> lk(mLock);
@@ -413,6 +431,13 @@ void SscEngine::logStatsLocked(int64_t now) {
          (long long)(mSources[kSourceRaw].lastEventNs
                              ? (now - mSources[kSourceRaw].lastEventNs) / 1000000
                              : -1));
+    LOGI("state: light(act=%d cfg=%d fails=%d) raw(act=%d cfg=%d fails=%d) fallback=%d rebuilds=%d lastRebuildAgo=%lldms",
+         mSources[kSourceLight].active, mSources[kSourceLight].configured,
+         mSources[kSourceLight].healthFails,
+         mSources[kSourceRaw].active, mSources[kSourceRaw].configured,
+         mSources[kSourceRaw].healthFails,
+         mFallback.load(std::memory_order_relaxed), mRebuilds.load(),
+         mLastRebuildNs.load() ? (long long)((now - mLastRebuildNs.load()) / 1000000) : -1LL);
 }
 void SscEngine::onResponse(uint32_t msgId, uint64_t ts, Source src) {
     LOGD("resp src=%d msg=%u ts=%llu", (int)src, msgId, (unsigned long long)ts);
@@ -515,6 +540,18 @@ void SscEngine::onEvent(const uint8_t* data, size_t size, uint64_t ts, Source sr
     }
     if (!gotSample || mEventSink == nullptr) return;
     if (src == kSourceLight) {
+        if (!mFallback.load(std::memory_order_relaxed)) return;
+        const float lux = values[0];
+        if (lux <= 0.05f || lux > 20000.0f) {
+            LOGD("fallback sample rejected: lux=%f", lux);
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lk(mLock);
+            mSources[kSourceLight].lastRaw = values[0];
+            mSources[kSourceLight].lastLux = lux;
+        }
+        mEventSink(kLightType, &lux, 1, (int64_t)ts);
         return;
     }
     mEventSink(kRawType, values.data(), (int)values.size(), (int64_t)ts);
@@ -524,6 +561,13 @@ void SscEngine::onEvent(const uint8_t* data, size_t size, uint64_t ts, Source sr
         std::lock_guard<std::mutex> lk(mLock);
         mSources[kSourceLight].lastRaw = values[0];
         mSources[kSourceLight].lastLux = lux;
+        if (mRebuilds.load(std::memory_order_relaxed) != 0) {
+            mRebuilds.store(0, std::memory_order_relaxed);
+        }
+    }
+    if (mFallback.exchange(false, std::memory_order_relaxed)) {
+        LOGI("raw stream recovered, disabling light-source fallback");
+        updateDesiredLocked("raw-recovered");
     }
     mEventSink(kLightType, &lux, 1, (int64_t)ts);
 }
@@ -553,6 +597,14 @@ void SscEngine::watchdogLoop() {
             for (int i = 0; i < kSourceCount; i++) {
                 SourceState& s = mSources[i];
                 if (s.configured != s.active) {
+                    if (s.needsDisable) {
+                        jobs[nJobs].src = (Source)i;
+                        jobs[nJobs].enable = false;
+                        jobs[nJobs].stateChange = true;
+                        nJobs++;
+                        s.needsDisable = false;
+                        continue;
+                    }
                     jobs[nJobs].src = (Source)i;
                     jobs[nJobs].enable = s.active;
                     jobs[nJobs].stateChange = true;
@@ -574,17 +626,34 @@ void SscEngine::watchdogLoop() {
                     if (s.healthFails == 0) {
                         s.healthFails = 1;
                         rearmNeeded = true;
-                        LOGW("src=%d: no samples for %lld ms (%lld total), re-sending config",
+                        s.needsDisable = true;
+                        s.configured = false;
+                        s.lastSendNs = 0;
+                        LOGW("src=%d: no samples for %lld ms (%lld total), resubscribing",
                              (int)i, (long long)silent_ms, (long long)s.eventCount);
-                    } else if (s.healthFails == 1 && mRebuilds.load() < kMaxRebuilds &&
-                               (mLastRebuildNs.load() == 0 ||
-                                now - mLastRebuildNs.load() >= kRebuildMinIntervalNs)) {
-                        s.healthFails = 2;
-                        rebuild = true;
-                    } else if (s.healthFails < 3) {
-                        s.healthFails = 3;
-                        LOGE("src=%d: stream dead after %d rebuild(s), giving up until reactivated",
-                             (int)i, mRebuilds.load());
+                    } else {
+                        const int rebuilds = mRebuilds.load();
+                        const int64_t lastNs = mLastRebuildNs.load();
+                        const int64_t since = (lastNs != 0) ? (now - lastNs) : INT64_MAX;
+                        const bool rebuildOk =
+                                (rebuilds < kMaxRebuilds && since >= kRebuildMinIntervalNs) ||
+                                (rebuilds >= kMaxRebuilds && since >= kDeadRetryNs);
+                        if (rebuildOk) {
+                            if (rebuilds >= kMaxRebuilds) {
+                                LOGW("src=%d: still dead after budget (%lld ms), retrying rebuild anyway",
+                                     (int)i, (long long)since / 1000000);
+                            }
+                            s.healthFails = 2;
+                            rebuild = true;
+                        } else if (s.healthFails < 3) {
+                            s.healthFails = 3;
+                            LOGE("src=%d: stream dead after %d rebuild(s), last %lld ms ago; "
+                                 "falling back to light source, rebuild retries every %lld s",
+                                 (int)i, rebuilds,
+                                 lastNs ? (long long)since / 1000000 : -1LL,
+                                 kDeadRetryNs / 1000000000);
+                            maybeEnableFallback((Source)i);
+                        }
                     }
                     continue;
                 }
@@ -600,6 +669,16 @@ void SscEngine::watchdogLoop() {
         if (rearmNeeded) rearm("quiet-source");
         if (rebuild) rebuildInterface();
     }
+}
+void SscEngine::destroyInterface(void* iface) {
+    if (iface == nullptr) return;
+    if (mDestroyFn == nullptr) {
+        LOGW("destroy: no ssc_interface destructor resolved, leaking %p", iface);
+        return;
+    }
+    typedef void (*DestroyFn)(void*);
+    ((DestroyFn)mDestroyFn)(iface);
+    LOGI("released ssc_interface %p", iface);
 }
 void SscEngine::rebuildInterface() {
     if (mRebuilds.load() >= kMaxRebuilds) return;
@@ -622,7 +701,8 @@ void SscEngine::rebuildInterface() {
     mIface = iface;
     const uint32_t gen = mGeneration.fetch_add(1) + 1;
     registerCallbacksLocked(iface, gen);
-    LOGI("rebuild %d/%d: new ssc_interface %p (gen %u), previous %p deliberately leaked",
+    destroyInterface(previous);
+    LOGI("rebuild %d/%d: new ssc_interface %p (gen %u), previous %p released",
          n, (int)kMaxRebuilds, iface, gen, previous);
     for (int k = 0; k < kSourceCount; k++) {
         bool active;
@@ -652,7 +732,9 @@ void SscEngine::shutdown() {
     for (int i = 0; i < kSourceCount; i++) {
         if (mSources[i].configured) sendConfig((Source)i, false);
     }
+    void* iface = mIface;
     mIface = nullptr;
     mSendRequestFn = nullptr;
+    destroyInterface(iface);
     mStarted = false;
 }

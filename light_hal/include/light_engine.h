@@ -38,6 +38,7 @@ class SscEngine {
         sensor_uid suid{0, 0};
         bool active = false;
         bool configured = false;
+        bool needsDisable = false;
         int64_t lastEventNs = 0;
         int64_t lastSendNs = 0;
         int64_t fastUntilNs = 0;
@@ -48,6 +49,7 @@ class SscEngine {
     };
     void watchdogLoop();
     void rebuildInterface();
+    void destroyInterface(void* iface);
     void registerCallbacksLocked(void* iface, uint32_t gen);
     void onResponse(uint32_t msgId, uint64_t ts, Source src);
     void onError(int error, Source src);
@@ -67,6 +69,7 @@ class SscEngine {
     void* mCreateFn = nullptr;
     void* mRegisterCbFn = nullptr;
     void* mSendRequestFn = nullptr;
+    void* mDestroyFn = nullptr;
     std::function<void(uint32_t, uint64_t)> mRespCb[kSourceCount];
     std::function<void(int)> mErrCb[kSourceCount];
     std::function<void(const uint8_t*, size_t, uint64_t)> mEvtCb[kSourceCount];
@@ -82,6 +85,7 @@ class SscEngine {
     std::atomic<uint32_t> mGeneration{0};
     std::atomic<int> mRebuilds{0};
     std::atomic<int64_t> mLastRebuildNs{0};
+    std::atomic<bool> mFallback{false};
     std::thread mWatchdog;
     std::atomic<bool> mRun{false};
     std::atomic<bool> mStarted{false};

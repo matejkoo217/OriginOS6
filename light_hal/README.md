@@ -1,6 +1,10 @@
 # Standalone light sub-HAL (`sensors.light.so`)
 
 it implements the AOSP multi-HAL **2.1 sub-HAL ABI** and talks to the sensors DSP directly through `libssc`.
+The rebuild now calls the `ssc_interface` deleting destructor before dropping thepointer.
+```
+dlsym(libssc, "_ZN13ssc_interfaceD0Ev")   // includes operator delete
+```
 
 ## Build
 ```bash
@@ -9,7 +13,7 @@ it implements the AOSP multi-HAL **2.1 sub-HAL ABI** and talks to the sensors DS
 
 ## Testing
 ```bash
-adb shell su -c 'logcat -d -s sensors-light'        # engine + sub-HAL
+adb shell su -c 'logcat -d -s sensors-light'        # engine + sub-HAL (stats/state lines every 30 s)
 adb shell su -c 'logcat -d -s SensorsMultiHal'      # HalProxy sub-HAL loader
 ```
 
