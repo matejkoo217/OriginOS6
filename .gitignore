@@ -37,3 +37,4 @@ overlays/VivoFrameworksResRRO.apk.idsig
 /audio/fuxi
 *.symversions
 *.d
+vendor_dlkm/kbuild.lock
