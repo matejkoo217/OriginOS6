@@ -23,7 +23,7 @@ vendor_dlkm/vendor_dlkm.img
 /vendor_dlkm/config
 midispctl
 resetprop
-/color_modes
+/color_modes/fuxi
 /lra/fuxi
 /face/facehal
 init/avb/oemvgc.pem
