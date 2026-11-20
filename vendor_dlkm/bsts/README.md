@@ -16,6 +16,24 @@ fail with `-EEXIST` if the running kernel already provides a `present` attribute
 That failure is intentional safety behavior; inspect the error before changing
 the name.
 
+## Race condition
+
+Attributes cannot exist before the charger registers the `battery`/`usb`
+power_supply: a sysfs attribute needs the `struct device` as its parent, and on
+fuxi `qti_battery_charger` only creates those devices ~10.8 s into boot. bsts
+therefore attaches them from a `class_interface` on `power_supply_class`:
+`add_dev` runs synchronously inside `device_add()`, i.e. the attributes are
+already there before userspace can see the new directory.
+
+The old 1 s delayed-work probe lost the race against the vivo health HAL.
+`BatteryMonitor::init` resolves every path once at startup (~10.8 s); when
+`usb/present` was not there yet, `chargerUsbOnline` stayed false for the whole
+boot, so BatteryService reported `USB powered: false` and the UI showed no
+charge indicator while `POWER_SUPPLY_STATUS` was `Charging`. The same race also
+left `soc_decimal`, `engine`, `charging_speed` and `board_temp_state` unread by
+the HAL (`cs=0 sd=0` in the first `healthd: battery` line). Attaching at
+registration fixes all of them.
+
 ## Build
 ```sh
   make -C ~/PATH/TO/KERNEL O=~/PATH/TO/KERNEL/out ARCH=arm64 LLVM=1 LLVM_IAS=1 M=$PWD modules

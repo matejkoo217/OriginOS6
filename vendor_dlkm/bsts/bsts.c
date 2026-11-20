@@ -32,6 +32,8 @@
 #include <linux/math64.h>
 #include <linux/mm.h>
 #include <linux/namei.h>
+#include <linux/dcache.h>
+#include <linux/fsnotify_backend.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/power_supply.h>
@@ -62,13 +64,9 @@ static int qcom_batt_read_int(const char *path)
 		return 0;
 	return val;
 }
-#define BSTS_RETRY_MS 1000
 static struct power_supply *battery_psy;
 static struct power_supply *usb_psy;
 static DEFINE_MUTEX(compat_lock);
-static struct delayed_work bsts_work;
-static bool bsts_exiting;
-static bool bsts_waiting;
 static bool have_chg_type;
 static bool have_fg_passed_charge;
 static bool have_soc_decimal;
@@ -605,7 +603,14 @@ static int settings_target(void)
 	}
 	return v >= 100 ? 0 : v;
 }
-static struct delayed_work soc_limit_work;
+static struct work_struct soc_limit_now_work;
+static atomic_t soc_reread_target = ATOMIC_INIT(0);
+static struct notifier_block soc_limit_psy_nb;
+static struct fsnotify_group *soc_limit_fs_group;
+static struct fsnotify_mark *soc_limit_fs_mark;
+static unsigned long soc_fs_retry_jiffies;
+static void soc_limit_schedule(bool reread);
+static int soc_limit_watch_settings(void);
 static int soc_limit = -1;
 #define SOC_HYST	2
 static int limit_mech;
@@ -626,7 +631,7 @@ static int soc_limit_param_set(const char *val, const struct kernel_param *kp)
 	WRITE_ONCE(soc_override, v);
 	WRITE_ONCE(soc_override_ignore, READ_ONCE(soc_limit));
 	WRITE_ONCE(soc_limit, v);
-	mod_delayed_work(system_wq, &soc_limit_work, 0);
+	soc_limit_schedule(false);
 	pr_info(DRV_NAME ": charge limit override -> %d%% (ignoring node %d)\n",
 		v, READ_ONCE(soc_override_ignore));
 	return 0;
@@ -637,15 +642,28 @@ static const struct kernel_param_ops soc_limit_ops = {
 };
 module_param_cb(soc_limit, &soc_limit_ops, &soc_limit, 0644);
 MODULE_PARM_DESC(soc_limit, "charge limit in % (0/negative disables)");
-static void soc_limit_work_fn(struct work_struct *work)
+static void soc_limit_apply(bool reread)
 {
 	int cap = ps_read_int(&battery_psy, POWER_SUPPLY_PROP_CAPACITY, -1);
 	int limit = READ_ONCE(soc_limit);
 	int mech = READ_ONCE(limit_mech);
 	bool on, target_changed = false;
-	if (READ_ONCE(target_from_settings)) {
+	if (!soc_limit_fs_mark && time_after(jiffies, soc_fs_retry_jiffies)) {
+		soc_fs_retry_jiffies = jiffies + msecs_to_jiffies(10000);
+		if (!soc_limit_watch_settings())
+			pr_info(DRV_NAME ": settings watch established\n");
+	}
+	if (reread && READ_ONCE(target_from_settings)) {
 		int st = settings_target();
-
+		if (st < 0 && READ_ONCE(soc_from_settings)) {
+			if (limit > 0) {
+				pr_info(DRV_NAME ": charge limit cleared (no target in settings)\n");
+				WRITE_ONCE(soc_limit, 0);
+				limit = 0;
+				target_changed = true;
+			}
+			WRITE_ONCE(soc_from_settings, false);
+		}
 		if (st >= 0) {
 			WRITE_ONCE(soc_from_settings, true);
 			if (st != limit) {
@@ -681,10 +699,83 @@ static void soc_limit_work_fn(struct work_struct *work)
 		pr_info(DRV_NAME ": charge limit %d%% (mech %d): cap=%d -> %s\n",
 			limit, mech, cap, on ? "stop charging" : "resume");
 	}
-	if ((limit > 0 && limit <= 100) ||
-	    READ_ONCE(target_from_settings))
-		schedule_delayed_work(&soc_limit_work,
-				      msecs_to_jiffies(15000));
+}
+static void soc_limit_now_fn(struct work_struct *work)
+{
+	soc_limit_apply(atomic_xchg(&soc_reread_target, 0) != 0);
+}
+
+static void soc_limit_schedule(bool reread)
+{
+	if (reread)
+		atomic_set(&soc_reread_target, 1);
+	schedule_work(&soc_limit_now_work);
+}
+static int soc_limit_psy_event(struct notifier_block *nb, unsigned long event, void *ptr)
+{
+	soc_limit_schedule(false);
+	return NOTIFY_DONE;
+}
+static const char *const soc_settings_names[] = {
+	"settings_secure.xml",
+	"settings_system.xml",
+};
+static int soc_limit_fs_event(struct fsnotify_group *group, u32 mask, const void *data, int data_type, struct inode *dir, const struct qstr *file_name, u32 cookie, struct fsnotify_iter_info *iter_info)
+{
+	size_t i;
+	if (file_name && file_name->len) {
+		for (i = 0; i < ARRAY_SIZE(soc_settings_names); i++) {
+			size_t n = strlen(soc_settings_names[i]);
+			if (file_name->len == n &&
+			    !memcmp(file_name->name, soc_settings_names[i], n))
+				break;
+		}
+		if (i == ARRAY_SIZE(soc_settings_names))
+			return 0;
+	}
+	soc_limit_schedule(true);
+	return 0;
+}
+static void soc_limit_fs_free_mark(struct fsnotify_mark *mark)
+{
+	kfree(mark);
+}
+static const struct fsnotify_ops soc_limit_fs_ops = {
+	.handle_event = soc_limit_fs_event,
+	.free_mark = soc_limit_fs_free_mark,
+};
+static int soc_limit_watch_settings(void)
+{
+	struct fsnotify_group *group;
+	struct fsnotify_mark *mark;
+	struct path path;
+	int rc;
+	if (kern_path("/data/system/users/0", LOOKUP_FOLLOW | LOOKUP_DIRECTORY, &path))
+		return -ENOENT;
+	group = fsnotify_alloc_group(&soc_limit_fs_ops);
+	if (IS_ERR(group)) {
+		path_put(&path);
+		return PTR_ERR(group);
+	}
+	mark = kzalloc(sizeof(*mark), GFP_KERNEL);
+	if (!mark) {
+		fsnotify_put_group(group);
+		path_put(&path);
+		return -ENOMEM;
+	}
+	fsnotify_init_mark(mark, group);
+	mark->mask = FS_CREATE | FS_MOVED_TO | FS_MODIFY | FS_CLOSE_WRITE |
+		     FS_EVENT_ON_CHILD;
+	rc = fsnotify_add_inode_mark(mark, d_inode(path.dentry), 0);
+	path_put(&path);
+	if (rc) {
+		fsnotify_put_mark(mark);
+		fsnotify_put_group(group);
+		return rc;
+	}
+	soc_limit_fs_group = group;
+	soc_limit_fs_mark = mark;
+	return 0;
 }
 static void soc_limit_set(const char *str)
 {
@@ -705,7 +796,7 @@ static void soc_limit_set(const char *str)
 		pr_info(DRV_NAME ": node '%s' (from %s/%d) mirrored, target stays %d%%\n",
 			str, current->comm, current->pid,
 			READ_ONCE(soc_limit));
-		mod_delayed_work(system_wq, &soc_limit_work, msecs_to_jiffies(300));
+		soc_limit_schedule(false);
 		return;
 	}
 	if (READ_ONCE(soc_override) != -2) {
@@ -724,7 +815,7 @@ static void soc_limit_set(const char *str)
 	WRITE_ONCE(soc_limit, v);
 	pr_info(DRV_NAME ": charge limit %d%% (node '%s', from %s/%d)\n",
 		v, str, current->comm, current->pid);
-	mod_delayed_work(system_wq, &soc_limit_work, msecs_to_jiffies(2000));
+	soc_limit_schedule(false);
 }
 static void wls_tx_request(char *val)
 {
@@ -1377,123 +1468,33 @@ static int bsts_add_file(struct device *dev, struct device_attribute *attr, bool
 	*created = true;
 	return 0;
 }
-static void remove_attrs(void);
-static int add_attrs(void)
+static void bsts_detach_battery(void)
 {
-	int rc;
-	battery_psy = power_supply_get_by_name("battery");
-	usb_psy = power_supply_get_by_name("usb");
-	if (!battery_psy || !usb_psy) {
-		if (battery_psy) {
-			power_supply_put(battery_psy);
-			battery_psy = NULL;
-		}
-		if (usb_psy) {
-			power_supply_put(usb_psy);
-			usb_psy = NULL;
-		}
-		return -ENODEV;
-	}
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_chg_type,
-			&have_chg_type);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_fg_passed_charge,
-			&have_fg_passed_charge);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_soc_decimal,
-			&have_soc_decimal);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_engine,
-			&have_engine);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_charging_speed,
-			&have_charging_speed);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_board_temp_state,
-			&have_board_temp_state);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_primary_board_temp,
-			&have_primary_board_temp);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_fg_raw_soc,
-			&have_fg_raw_soc);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_charge_avg,
-			&have_charge_avg);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&battery_psy->dev, &dev_attr_low_chg_temp_thre,
-			&have_low_chg_temp_thre);
-	if (rc)
-		goto err;
-	rc = bsts_add_file(&usb_psy->dev, &dev_attr_present,
-			&have_usb_present);
-	if (rc)
-		goto err;
-	pr_info(DRV_NAME ": added compatibility attributes\n");
-	return 0;
-err:
-	remove_attrs();
-	return rc;
-}
-static void remove_attrs(void)
-{
-	if (usb_psy) {
-		if (have_usb_present)
-			device_remove_file(&usb_psy->dev, &dev_attr_present);
-		power_supply_put(usb_psy);
-		usb_psy = NULL;
-	}
-	if (battery_psy) {
-		if (have_low_chg_temp_thre)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_low_chg_temp_thre);
-		if (have_charge_avg)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_charge_avg);
-		if (have_fg_raw_soc)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_fg_raw_soc);
-		if (have_primary_board_temp)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_primary_board_temp);
-		if (have_board_temp_state)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_board_temp_state);
-		if (have_charging_speed)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_charging_speed);
-		if (have_engine)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_engine);
-		if (have_soc_decimal)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_soc_decimal);
-		if (have_fg_passed_charge)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_fg_passed_charge);
-		if (have_chg_type)
-			device_remove_file(&battery_psy->dev,
-				&dev_attr_chg_type);
-		power_supply_put(battery_psy);
-		battery_psy = NULL;
-	}
-	if (cms_class) {
-		class_destroy(cms_class);
-		cms_class = NULL;
-	}
-	if (fuelsummary_class) {
-		class_destroy(fuelsummary_class);
-		fuelsummary_class = NULL;
-	}
+	if (!battery_psy)
+		return;
+	if (have_low_chg_temp_thre)
+		device_remove_file(&battery_psy->dev, &dev_attr_low_chg_temp_thre);
+	if (have_charge_avg)
+		device_remove_file(&battery_psy->dev, &dev_attr_charge_avg);
+	if (have_fg_raw_soc)
+		device_remove_file(&battery_psy->dev, &dev_attr_fg_raw_soc);
+	if (have_primary_board_temp)
+		device_remove_file(&battery_psy->dev,
+			&dev_attr_primary_board_temp);
+	if (have_board_temp_state)
+		device_remove_file(&battery_psy->dev,
+			&dev_attr_board_temp_state);
+	if (have_charging_speed)
+		device_remove_file(&battery_psy->dev, &dev_attr_charging_speed);
+	if (have_engine)
+		device_remove_file(&battery_psy->dev, &dev_attr_engine);
+	if (have_soc_decimal)
+		device_remove_file(&battery_psy->dev, &dev_attr_soc_decimal);
+	if (have_fg_passed_charge)
+		device_remove_file(&battery_psy->dev,
+			&dev_attr_fg_passed_charge);
+	if (have_chg_type)
+		device_remove_file(&battery_psy->dev, &dev_attr_chg_type);
 	have_chg_type = false;
 	have_fg_passed_charge = false;
 	have_soc_decimal = false;
@@ -1503,50 +1504,137 @@ static void remove_attrs(void)
 	have_primary_board_temp = false;
 	have_fg_raw_soc = false;
 	have_charge_avg = false;
-	have_usb_present = false;
 	have_low_chg_temp_thre = false;
+	power_supply_put(battery_psy);
+	battery_psy = NULL;
 }
-static void bsts_probe_work(struct work_struct *work)
+static void bsts_detach_usb(void)
 {
-	int rc;
-	mutex_lock(&compat_lock);
-	if (bsts_exiting) {
-		mutex_unlock(&compat_lock);
+	if (!usb_psy)
 		return;
-	}
-	rc = add_attrs();
-	if (rc == -ENODEV) {
-		if (!bsts_waiting) {
-			bsts_waiting = true;
-			pr_info(DRV_NAME ": battery/usb not ready, waiting for probe\n");
-		}
-		schedule_delayed_work(&bsts_work,
-			msecs_to_jiffies(BSTS_RETRY_MS));
-	} else if (rc) {
-		pr_err(DRV_NAME ": failed to add attributes: %d\n", rc);
-	}
-	mutex_unlock(&compat_lock);
+	if (have_usb_present)
+		device_remove_file(&usb_psy->dev, &dev_attr_present);
+	have_usb_present = false;
+	power_supply_put(usb_psy);
+	usb_psy = NULL;
 }
+static int bsts_attach_battery(struct device *dev)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	int rc;
+	if (battery_psy || !psy)
+		return 0;
+	battery_psy = psy;
+	get_device(dev);
+	atomic_inc(&psy->use_cnt);
+	rc = bsts_add_file(dev, &dev_attr_chg_type, &have_chg_type);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_fg_passed_charge,
+				&have_fg_passed_charge);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_soc_decimal,
+				&have_soc_decimal);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_engine, &have_engine);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_charging_speed,
+				&have_charging_speed);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_board_temp_state,
+				&have_board_temp_state);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_primary_board_temp,
+				&have_primary_board_temp);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_fg_raw_soc, &have_fg_raw_soc);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_charge_avg, &have_charge_avg);
+	if (!rc)
+		rc = bsts_add_file(dev, &dev_attr_low_chg_temp_thre,
+				&have_low_chg_temp_thre);
+	if (rc) {
+		bsts_detach_battery();
+		return rc;
+	}
+	pr_info(DRV_NAME ": battery attributes attached\n");
+	return 0;
+}
+static int bsts_attach_usb(struct device *dev)
+{
+	struct power_supply *psy = dev_get_drvdata(dev);
+	int rc;
+
+	if (usb_psy || !psy)
+		return 0;
+	usb_psy = psy;
+	get_device(dev);
+	atomic_inc(&psy->use_cnt);
+	rc = bsts_add_file(dev, &dev_attr_present, &have_usb_present);
+	if (rc) {
+		bsts_detach_usb();
+		return rc;
+	}
+	pr_info(DRV_NAME ": usb attributes attached\n");
+	return 0;
+}
+static void remove_attrs(void)
+{
+	bsts_detach_usb();
+	bsts_detach_battery();
+	if (cms_class) {
+		class_destroy(cms_class);
+		cms_class = NULL;
+	}
+	if (fuelsummary_class) {
+		class_destroy(fuelsummary_class);
+		fuelsummary_class = NULL;
+	}
+}
+static int bsts_psy_add(struct device *dev, struct class_interface *intf)
+{
+	const char *name = dev_name(dev);
+
+	if (!strcmp(name, "battery"))
+		bsts_attach_battery(dev);
+	else if (!strcmp(name, "usb"))
+		bsts_attach_usb(dev);
+	return 0;
+}
+static void bsts_psy_remove(struct device *dev, struct class_interface *intf)
+{
+	if (battery_psy && &battery_psy->dev == dev)
+		bsts_detach_battery();
+	else if (usb_psy && &usb_psy->dev == dev)
+		bsts_detach_usb();
+}
+static struct class_interface bsts_psy_intf = {
+	.add_dev = bsts_psy_add,
+	.remove_dev = bsts_psy_remove,
+};
 static int __init bsts_init(void)
 {
 	cms_class_create();
 	fuelsummary_class_create();
-	INIT_DELAYED_WORK(&bsts_work, bsts_probe_work);
-	schedule_delayed_work(&bsts_work, 0);
+	bsts_psy_intf.class = power_supply_class;
+	if (class_interface_register(&bsts_psy_intf))
+		pr_warn(DRV_NAME ": power_supply interface unavailable\n");
 	INIT_DELAYED_WORK(&wls_tx_work, wls_tx_work_fn);
 	INIT_DELAYED_WORK(&wls_poll_work, wls_poll_work_fn);
-	INIT_DELAYED_WORK(&soc_limit_work, soc_limit_work_fn);
 	INIT_DELAYED_WORK(&bypass_work, bypass_work_fn);
-	schedule_delayed_work(&soc_limit_work, msecs_to_jiffies(5000));
+	INIT_WORK(&soc_limit_now_work, soc_limit_now_fn);
+	soc_limit_psy_nb.notifier_call = soc_limit_psy_event;
+	if (power_supply_reg_notifier(&soc_limit_psy_nb))
+		pr_warn(DRV_NAME ": power_supply notifier failed\n");
+	if (soc_limit_watch_settings())
+		pr_warn(DRV_NAME ": settings watch failed, target changes need a param write\n");
+	soc_limit_schedule(true);
 	INIT_DELAYED_WORK(&wls_notify_work, wls_notify_work_fn);
 	return 0;
 }
 static void __exit bsts_exit(void)
 {
-	mutex_lock(&compat_lock);
-	bsts_exiting = true;
-	mutex_unlock(&compat_lock);
-	cancel_delayed_work_sync(&bsts_work);
+	if (bsts_psy_intf.class)
+		class_interface_unregister(&bsts_psy_intf);
 	cancel_delayed_work_sync(&wls_tx_work);
 	cancel_delayed_work_sync(&wls_poll_work);
 	cancel_delayed_work_sync(&wls_notify_work);
@@ -1556,7 +1644,17 @@ static void __exit bsts_exit(void)
 		snprintf(path, sizeof(path), QCOM_BATT_FMT, "restrict_chg");
 		write_int_file(path, 0);
 	}
-	cancel_delayed_work_sync(&soc_limit_work);
+	cancel_work_sync(&soc_limit_now_work);
+	power_supply_unreg_notifier(&soc_limit_psy_nb);
+	if (soc_limit_fs_mark) {
+		fsnotify_destroy_mark(soc_limit_fs_mark, soc_limit_fs_group);
+		fsnotify_put_mark(soc_limit_fs_mark);
+		soc_limit_fs_mark = NULL;
+	}
+	if (soc_limit_fs_group) {
+		fsnotify_put_group(soc_limit_fs_group);
+		soc_limit_fs_group = NULL;
+	}
 	if (soc_limit_applied) {
 		write_int_file(QCOM_BATT_PATH("input_suspend"), 0);
 		write_int_file(QCOM_BATT_PATH("restrict_chg"), 0);
