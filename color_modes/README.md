@@ -132,3 +132,20 @@ Both are constants and can be changed easily below.
 
 Ambient CCT moves slowly, and the HAL itself publishes at most once a second, so in a typical room this is silent.
 🐥
+
+---
+
+### Game Assistant filters
+
+The game colour presets (Vivid / Bright / Soft / Shadow boost / Anti-glare /
+Old movies) and the **Image quality tuning** sliders (Tone / Saturation /
+Contrast / Brightness) are not SurfaceFlinger colour modes. `com.vivo.gamecube`
+sends them to system_server:
+
+**`/vendor/etc/vivo_config.ini`** `[vivo.hardware.game.sdr2hdr]` needs
+   `is_support_game_display_enhance_platform=true`. Without it system_server
+   takes the Nova/Iris branch instead. It also needs **`is_support_zygote=1`**
+   becouse the feature is read in zygote, so the configstore HAL publishes
+   `ro.vendor.vivo.hardware.game.sdr2hdr:<key>` at boot; without the
+   attribute those properties are absent and zygote/system_server fall back
+   to the defaults (`false`).

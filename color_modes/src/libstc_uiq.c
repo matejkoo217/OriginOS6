@@ -41,6 +41,7 @@
 #define NODE_FPS	"/sys/class/mi_display/disp-DSI-0/dynamic_fps"
 #define DFSET_BIN	"/vendor/bin/dfset"
 #define CCT_PATH	"/data/vendor/display/light_cct"
+#define GAME_PCC_PATH	"/data/vendor/display/game_pcc"
 #define MODE_STANDARD		0
 #define MODE_PROFESSIONAL	1
 #define MODE_BRIGHT		2
@@ -152,6 +153,10 @@ static long g_last_push_ms;
 static int g_last_level = -1;
 static int g_cct_valid;
 static float g_cct_k;
+static int g_game_on;
+static int g_game_h, g_game_s, g_game_v, g_game_c;
+static int g_last_game_on = -1;
+static int g_last_gh, g_last_gs, g_last_gv, g_last_gc;
 static pthread_mutex_t g_pcc_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int intent_clamp(int v)
@@ -506,6 +511,38 @@ static long now_ms(void)
 	return (long)ts.tv_sec * 1000L + (long)(ts.tv_nsec / 1000000L);
 }
 
+static int game_clamp(int v, int lo, int hi)
+{
+	return v < lo ? lo : (v > hi ? hi : v);
+}
+static int game_read(void)
+{
+	char buf[64];
+	int fd, n, on = 0, h = 0, s = 0, v = 0, c = 0;
+	fd = open(GAME_PCC_PATH, O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		g_game_on = 0;
+		return 0;
+	}
+	n = (int)read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (n <= 0) {
+		g_game_on = 0;
+		return 0;
+	}
+	buf[n] = 0;
+	if (sscanf(buf, "%d %d %d %d %d", &on, &h, &s, &v, &c) != 5 || on != 1) {
+		g_game_on = 0;
+		return 0;
+	}
+	g_game_h = game_clamp(h, -180, 180);
+	g_game_s = game_clamp(s, -50, 50);
+	g_game_v = game_clamp(v, -255, 255);
+	g_game_c = game_clamp(c, -100, 100);
+	g_game_on = 1;
+	return 1;
+}
+
 static void apply_pcc(int mode, int cct, int force)
 {
 	int zeiss = (mode == MODE_ZEISS);
@@ -514,6 +551,45 @@ static void apply_pcc(int mode, int cct, int force)
 	long now;
 	if (!pcc_on())
 		return;
+	if (game_read()) {
+		int game_need;
+		pthread_mutex_lock(&g_pcc_lock);
+		game_need = force || g_last_game_on != 1 ||
+			    g_game_h != g_last_gh || g_game_s != g_last_gs ||
+			    g_game_v != g_last_gv || g_game_c != g_last_gc;
+		if (game_need) {
+			char gh[12], gs[12], gv[12], gc[12];
+			char *argv[] = { (char *)"dfset", (char *)"-e",
+					 (char *)"255", (char *)"255",
+					 (char *)"255", gh, gs, gv, gc,
+					 (char *)"220", NULL };
+			snprintf(gh, sizeof(gh), "%d", g_game_h);
+			snprintf(gs, sizeof(gs), "%d", g_game_s);
+			snprintf(gv, sizeof(gv), "%d", g_game_v);
+			snprintf(gc, sizeof(gc), "%d", g_game_c);
+			if (run_tool(DFSET_BIN, argv) == 0) {
+				g_last_game_on = 1;
+				g_last_gh = g_game_h;
+				g_last_gs = g_game_s;
+				g_last_gv = g_game_v;
+				g_last_gc = g_game_c;
+				g_last_push_ms = now_ms();
+				LOGI("EXPERT_STATE game H %d S %d V %d C %d (mode %d, cct %d)",
+				     g_game_h, g_game_s, g_game_v, g_game_c,
+				     mode, cct);
+			}
+		}
+		pthread_mutex_unlock(&g_pcc_lock);
+		return;
+	}
+	if (g_last_game_on == 1) {
+		g_last_game_on = 0;
+		force = 1;
+		g_last_zeiss = -1;
+		g_last_level = -1;
+		g_last_r = -1;
+		g_last_b = -1;
+	}
 	pthread_mutex_lock(&g_pcc_lock);
 	level = target_level(mode, cct);
 	amb = truetone_active(mode, cct);
@@ -694,6 +770,7 @@ static void *mode_watcher(void *arg)
 	int ifd;
 	int fps;
 	int cctw = -1;
+	int gamew = -1;
 	int prev_fps = -1;
 	(void)arg;
 	pthread_setname_np(pthread_self(), "stc-uiq-mode");
@@ -714,6 +791,13 @@ static void *mode_watcher(void *arg)
 			     strerror(errno));
 		else
 			LOGI("watching " CCT_PATH " for true tone");
+		gamew = inotify_add_watch(ifd, GAME_PCC_PATH,
+					  IN_MODIFY | IN_CLOSE_WRITE);
+		if (gamew < 0)
+			LOGW("inotify(" GAME_PCC_PATH "): %s, will retry",
+			     strerror(errno));
+		else
+			LOGI("watching " GAME_PCC_PATH " for game filters");
 	} else {
 		LOGW("inotify_init1: %s", strerror(errno));
 	}
@@ -727,7 +811,7 @@ static void *mode_watcher(void *arg)
 	for (;;) {
 		struct pollfd p[2];
 		int n = 0, hit = 0, resume = 0;
-		int timeout = (ifd < 0 || cctw >= 0) ? -1 : 2000;
+		int timeout = (ifd < 0 || (cctw >= 0 && gamew >= 0)) ? -1 : 2000;
 		p[n].fd = ifd;
 		p[n].events = POLLIN;
 		p[n].revents = 0;
@@ -749,6 +833,15 @@ static void *mode_watcher(void *arg)
 						 IN_MODIFY | IN_CLOSE_WRITE);
 			if (cctw >= 0) {
 				LOGI("watching " CCT_PATH " for true tone");
+				hit = 1;
+			}
+		}
+		if (gamew < 0 && ifd >= 0) {
+			gamew = inotify_add_watch(ifd, GAME_PCC_PATH,
+						  IN_MODIFY | IN_CLOSE_WRITE);
+			if (gamew >= 0) {
+				LOGI("watching " GAME_PCC_PATH
+				     " for game filters");
 				hit = 1;
 			}
 		}
