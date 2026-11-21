@@ -38,3 +38,4 @@ overlays/VivoFrameworksResRRO.apk.idsig
 *.symversions
 *.d
 vendor_dlkm/kbuild.lock
+/screenoff/fuxi
