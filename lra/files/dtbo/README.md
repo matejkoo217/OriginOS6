@@ -1,83 +1,43 @@
+# 🐥 :O
 The vivo driver reads its scene/effect tables from its own device tree node
 (`vhc_parse_dt`). Without them every upload fails with
 `vhc_haptics_load_periodic_effect: scene:N not support` and nothing moves.
 
-The data comes from iQOO 11's decompiled dtbo
+## Images in this folder
+| file | what it is |
+|---|---|
+| `fuxi_dtbo.img` | vivo props + the three tables from iQOO 11, the whole waveform table from iQOO 13, and the sound-vibration ladder scenes 89/90. 32 entries, 1119 named waveform blocks. |
+| `iqoo11-dtbo.dts` | iQOO 11 decompiled dtbo entry, base source: props, `lra_scene_array` / `qti_ram_effects` / `qti_minor_rtp_effects`, vmax envelope |
+| `iqoo13-dtbo.dts` | iQOO 13 decompiled dtbo entry: full `qti_rtp_effects` table, 1069 waveform blocks |
 
-## Target node
+## Regenerate it:
 ```
-/soc/qcom,spmi@c42d000/qcom,pm8550b@7/qcom,hv-haptics@f000
-```
-(fuxi's dtbo has **32 entries**; all of them carry a full copy of this node = patch every entry, the bootloader picks one by board/panel id.)
-
-## Properties to insert (indentation: 5 tabs)
-```
-lra_info = <0x257b>;
-vib_num = <0x01>;
-is_major_motor;
-richtap_type = <0x01>;
-resistance_min = <0x1388>;
-resistance_max = <0x4e20>;
-freq_min = <0x640>;
-freq_max = <0x73a>;
-scene_array = <&lra_scene_array>;
-ram_effects = <&qti_ram_effects>;
-rtp_effects = <&qti_minor_rtp_effects>;
+tools/patch_dtbo.py dtbo-orig.img dtbo-patched.img \
+    --iqoo-dts  files/dtbo/iqoo11-dtbo.dts \
+    --iqoo13-dts files/dtbo/iqoo13-dtbo.dts \
+    --firmware  files/vendor/firmware
 ```
 
-Change `qcom,vmax-mv` to your device one! (1200 mV on fuxi) and `qcom,lra-period-us`.
+* **iQOO 11 dts:** props, `lra_scene_array` / `qti_ram_effects` /
+  `qti_minor_rtp_effects`, vmax envelope.
+* **iQOO 13 dts:** the complete per-family waveform table (`R_` ringtones,
+  `N_` notifications, `A_` alarms, `T_`, `S_`, `G_`); iQOO 11's DT names only
+  six ringtones.  `--firmware` drops blocks whose `.bin` is missing.
+* The two missing sound-vibration ladder scenes (89/90) are filled in
+  automatically (`--no-scene-fill` to skip).
 
-## Child nodes (insert before the node's closing brace)
-```
-lra_scene_array: lra_scene_array {
-    phandle = <0x1e0>;          ← any value above the tree's max phandle
-    <contents of blk_scene.txt>
-};
+## Firmware blobs
+The `.bin` payloads themselves come from the **iQOO 11** firmware dump and must
+sit in `vendor/firmware/`: `A_*` 18, `R_*` 48, `N_*` 48, `S_*` 14, `T_*` 2,
+`G_*` 1112.
 
-qti_ram_effects: qti_ram_effects {
-    phandle = <0x1e1>;
-    <contents of blk_ram.txt>
-};
-
-qti_minor_rtp_effects: qti_minor_rtp_effects {
-    phandle = <0x1e2>;
-    <contents of blk_rtp.txt>
-};
-```
-
-## Clamp — per entry
-The copied effects carry `qcom,wf-vmax-mv` up to **9000 mV**! fuxi's own effects
-use at most its own value, which differs per board entry:
-| entries | node `qcom,vmax-mv` | effect `wf-vmax-mv` | rule |
-|---|---|---|---|
-| 0, 29 | 0x4b0 (1200) | 0xe10 (3600) | clamp to 0xe10 |
-| 17–19, 23–26 | 0x514 | **0x708 (1800)** | clamp to **0x708** |
-| 27 | 0x672 | 0xe10 | clamp to 0xe10 |
-| rest | 0xe10 | 0xe10 | clamp to 0xe10 |
-
-i.e. for each entry, `cap = max(qcom,wf-vmax-mv over its effect_0..5)`, then
-rewrite every inserted `qcom,wf-vmax-mv` above `cap` to `cap`.
-(`blk_ram.txt` / `blk_rtp.txt` are already clamped to 3600; entries with the
-1800 mV cap need one more pass.)
-
-The bootloader **renumbers every phandle** when it merges the dtbo. It only
-rewrites references it knows about, and dtc only records those it generated
-itself. Our three properties are not phandle-typed as far as dtc is concerned,
-so without this they keep pointing at `0x1e0` while the node moves to `0x76c`:
-```
-Get base effect elements count failed, ret=-22
-```
-Add the three entries next to the existing `nvmem` fixup in **every entry**
-(the fragment index differs — 2 or 3):
-```
-__local_fixups__ {
-  fragment@N { __overlay__ { qcom,pm8550b@7 {
-    qcom,hv-haptics@f000 {
-        nvmem = <0x00>;          ← pre-existing
-        scene_array = <0x00>;    ← add
-        ram_effects = <0x00>;    ← add
-        rtp_effects = <0x00>;    ← add
-    };
-  }; }; };
-}
-```
+## Notes
+* **Per-entry clamp.** fuxi's own effect vmax is `0xe10` (3600 mV) on most
+  entries and `0x708` (1800 mV) on the `qcom,vmax-mv = 0x514` ones (17–19,
+  23–26).  The tool clamps every inserted `qcom,wf-vmax-mv` **and** every
+  `base_scene` / `ext_scene` vmax to that entry's own maximum. **iQOO ships
+  8000/9000 mV!**
+* **`__local_fixups__`.** The three properties must be listed next to the
+  existing `nvmem` fixup in every entry, or the bootloader's phandle renumbering
+  leaves them stale (`Get base effect elements count failed, ret=-22`).  The
+  tool adds them.

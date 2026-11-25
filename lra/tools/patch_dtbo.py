@@ -24,6 +24,20 @@ VIVO_PROPS = (
     ('freq_max', '0x73a'),            # 185.0 Hz == fuxi qcom,lra-f0-max
 )
 FALLBACK_CAP = 0xe10                  # fuxis default effect vmax (3600 mV)
+
+# iQOO 11's DT only names 6 ringtone waveforms. iQOO 13 names every all.
+IQOO13_ENV = 'PATCH_DTBO_IQOO13_DTS'
+IQOO13_MARKER = 'qti_rtp_effects'
+BAND_RANGES = {                       # effect-id ranges per waveform family
+    'R': (301, 340),                  # ringtones
+    'N': (401, 448),                  # notifications
+    'A': (501, 518),                  # alarms
+    'T': (690, 691),                  # long vibrate
+    'S': (9001, 28003),               # system
+    'G': (601, 26014),                # games
+}
+SCENE_FILL = ((89, 3, 3000), (90, 3, 3300))   # sound-vibration ladder gaps
+
 def looks_like_iqoo_dts(path):
     try:
         with open(path, encoding='utf-8', errors='replace') as f:
@@ -54,7 +68,7 @@ def find_iqoo_dts(stock):
                     return p
                 tried.append(p + ' (no %s)' % IQOO_DTS_MARKER)
     raise SystemExit(
-        'no iQOO decompiled dtbo dts found — pass --iqoo-dts PATH or set $%s.\n'
+        'no iQOO decompiled dtbo dts found pass --iqoo-dts PATH or set $%s.\n'
         '  looked for [%s] in:\n    %s%s'
         % (IQOO_DTS_ENV, ', '.join(IQOO_DTS_NAMES), '\n    '.join(dirs),
            ('\n  rejected:\n    ' + '\n    '.join(tried)) if tried else ''))
@@ -204,6 +218,112 @@ def patch_dts(txt, scene, ram, rtp, stats):
             txt = txt[:o + 1] + body + '\n' + ind + txt[c:]
 
     return txt
+def donor_rtp(path):
+    """{effect_id: (bin_name, rtp_len)} from an iQOO 13 style qti_rtp_effects."""
+    txt = open(path, encoding='utf-8', errors='replace').read()
+    try:
+        _, o, c = find_node(txt, 'qti_rtp_effects')
+    except ValueError:
+        _, o, c = find_node(txt, 'qti_minor_rtp_effects')
+    out = {}
+    for m in re.finditer(r'effect_(\d+)\s*\{(.*?)\n\s*\};', txt[o + 1:c], re.S):
+        eid, blk = int(m.group(1)), m.group(2)
+        n = re.search(r'qcom,rtp-name = "([^"]+)"', blk)
+        l = re.search(r'qcom,rtp-len = <(0x[0-9a-fA-F]+|\d+)>', blk)
+        if n and l:
+            out[eid] = (n.group(1), int(l.group(1), 0))
+    return out
+
+
+def select_bands(donor, bands):
+    want = set(x.strip() for x in bands.split(',') if x.strip())
+    sel = {}
+    for eid, (name, ln) in donor.items():
+        fam = name.split('_')[0]
+        if fam not in want:
+            continue
+        rng = BAND_RANGES.get(fam)
+        if rng and not (rng[0] <= eid <= rng[1]):
+            continue
+        sel[eid] = (name, ln)
+    return sel
+
+
+def add_rtp_blocks(txt, sel, cap):
+    """Append any donor effect block this entry is missing, vmax clamped to cap."""
+    try:
+        tind, to, tc = find_node(txt, 'qti_minor_rtp_effects')
+    except ValueError:
+        return txt, 0
+    present = set(int(x) for x in re.findall(r'effect_(\d+) \{', txt[to + 1:tc]))
+    todo = [e for e in sorted(sel) if e not in present]
+    if not todo:
+        return txt, 0
+    tpl = None
+    for t in [309] + sorted(present):
+        m = re.search(r'(?m)^([ \t]*)effect_%d \{.*?\n\1\};' % t, txt, re.S)
+        if m:
+            tpl = m
+            break
+    if tpl is None:
+        return txt, 0
+    ci = tind + '\t'
+    add = ''
+    for eid in todo:
+        name, ln = sel[eid]
+        b = re.sub(r'effect_\d+ \{', 'effect_%d {' % eid, tpl.group(0), count=1)
+        b = re.sub(r'qcom,effect-id = <[^>]*>;', 'qcom,effect-id = <%#x>;' % eid, b, count=1)
+        b = re.sub(r'qcom,rtp-name = "[^"]*";', 'qcom,rtp-name = "%s";' % name, b, count=1)
+        b = re.sub(r'qcom,rtp-len = <[^>]*>;', 'qcom,rtp-len = <%#x>;' % ln, b, count=1)
+        b = re.sub(r'qcom,wf-vmax-mv = <[^>]*>;', 'qcom,wf-vmax-mv = <%#x>;' % cap, b, count=1)
+        add += '\n' + b
+    return txt[:tc] + add + '\n' + txt[tc:], len(todo)
+
+
+def fill_scenes(txt, adds):
+    """Insert missing base_scene triples ({scene, effect, vmax}, 6 bytes BE)."""
+    m = re.search(r'(?m)^([ \t]*)base_scene = \[([0-9a-fA-F \t]*)\];', txt)
+    if not m:
+        return txt, 0
+    raw = bytes(int(x, 16) for x in m.group(2).split())
+    if len(raw) % 6:
+        return txt, 0
+    ents = [(int.from_bytes(raw[i:i + 2], 'big'),
+             int.from_bytes(raw[i + 2:i + 4], 'big'),
+             int.from_bytes(raw[i + 4:i + 6], 'big')) for i in range(0, len(raw), 6)]
+    have = {s for s, _, _ in ents}
+    new = [(s, e, v) for s, e, v in adds if s not in have]
+    if not new:
+        return txt, 0
+    out = bytearray()
+    for s, e, v in sorted(ents + new):
+        out += s.to_bytes(2, 'big') + e.to_bytes(2, 'big') + v.to_bytes(2, 'big')
+    return (txt[:m.start(2)] + ' '.join('%02x' % x for x in out) + txt[m.end(2):],
+            len(new))
+
+
+def clamp_scenes(txt, cap):
+    """Clamp every base_scene/ext_scene vmax to the entry's own envelope."""
+    n = [0]
+
+    def one(m):
+        raw = bytes(int(x, 16) for x in m.group(3).split())
+        if len(raw) % 6:
+            return m.group(0)
+        out = bytearray()
+        for i in range(0, len(raw), 6):
+            s = int.from_bytes(raw[i:i + 2], 'big')
+            e = int.from_bytes(raw[i + 2:i + 4], 'big')
+            v = int.from_bytes(raw[i + 4:i + 6], 'big')
+            if v > cap:
+                v = cap
+                n[0] += 1
+            out += s.to_bytes(2, 'big') + e.to_bytes(2, 'big') + v.to_bytes(2, 'big')
+        return '%s%s = [%s];' % (m.group(1), m.group(2), ' '.join('%02x' % x for x in out))
+    return re.sub(r'(?m)^([ \t]*)(base_scene|ext_scene) = \[([0-9a-fA-F \t]*)\];',
+                  one, txt), n[0]
+
+
 def facts(t):
     try:
         ind, o, c = find_node(t, NODE)
@@ -259,6 +379,18 @@ def main():
                          'or $%s)' % IQOO_DTS_ENV)
     ap.add_argument('--compare', default=None, metavar='IMG',
                     help='known-good dtbo.img to compare against (read-only)')
+    ap.add_argument('--iqoo13-dts', default=None, metavar='PATH',
+                    help='iQOO 13 decompiled dtbo dts (full RTP table); '
+                         'default $%s. Without it only the iQOO 11 tables are used, '
+                         'so most ringtone/notification scenes stay unresolved.' % IQOO13_ENV)
+    ap.add_argument('--bands', default='R,N,A,T,S,G',
+                    help='waveform families wired from the iQOO 13 table '
+                         '(default: R,N,A,T,S,G)')
+    ap.add_argument('--firmware', default=None, metavar='DIR',
+                    help='firmware dir; donor blocks whose .bin is absent are skipped')
+    ap.add_argument('--no-scene-fill', action='store_true',
+                    help='skip filling missing base_scene ids (%s)'
+                         % ','.join(str(s) for s, _, _ in SCENE_FILL))
     a = ap.parse_args()
     dts = a.iqoo_dts or find_iqoo_dts(a.stock)
     if not os.path.isfile(dts):
@@ -268,6 +400,27 @@ def main():
     scene = iqoo_node(iq, 'lra_scene_array')
     ram = iqoo_node(iq, 'qti_ram_effects')
     rtp = iqoo_node(iq, 'qti_minor_rtp_effects')
+
+    d13 = a.iqoo13_dts or os.environ.get(IQOO13_ENV)
+    sel = {}
+    if d13:
+        if not os.path.isfile(d13) or IQOO13_MARKER not in open(
+                d13, encoding='utf-8', errors='replace').read():
+            sys.exit('iqoo13 dts unusable (needs %s): %s' % (IQOO13_MARKER, d13))
+        sel = select_bands(donor_rtp(d13), a.bands)
+        if a.firmware:
+            miss = [e for e, (n, _) in sel.items()
+                    if not os.path.exists(os.path.join(a.firmware, n))]
+            for e in miss:
+                del sel[e]
+            if miss:
+                print('iqoo13: skipped %d blocks with no .bin (%s%s)'
+                      % (len(miss), ','.join(str(x) for x in miss[:6]),
+                         '...' if len(miss) > 6 else ''))
+        print('iqoo13: %s  (%d waveform blocks: %s)' % (d13, len(sel), a.bands))
+    else:
+        print('iqoo13: not given -> ringtone/notification wiring skipped '
+              '(pass --iqoo13-dts or $%s)' % IQOO13_ENV)
     src = open(a.stock, 'rb').read()
     h = header(src)
     print('stock : %d entries, %d bytes  (%s)' % (h['ecount'], h['total'], a.stock))
@@ -279,6 +432,17 @@ def main():
             continue
         stats = dict(entries=[], nofixup_nvmem=False)
         new = patch_dts(txt, scene, ram, rtp, stats)
+        cap = stats['entries'][0]['cap']
+        n_rtp = 0
+        if sel:
+            new, n_rtp = add_rtp_blocks(new, sel, cap)
+        n_sc = 0
+        if not a.no_scene_fill:
+            new, n_sc = fill_scenes(new, SCENE_FILL)
+        new, n_cl = clamp_scenes(new, cap)
+        stats['entries'][0]['rtp_added'] = n_rtp
+        stats['entries'][0]['scenes_added'] = n_sc
+        stats['entries'][0]['scene_clamped'] = n_cl
         r = compile_dts(new)
         if r.returncode:
             bad.append((i, 'dtc: ' + r.stderr.decode().splitlines()[0][:120]))
@@ -335,11 +499,17 @@ def main():
         out[offs[i]:offs[i] + len(b)] = b
     open(a.out, 'wb').write(out)
     print('wrote %s (%d bytes)' % (a.out, total))
-    print('\nentry  node-vmax  entry-cap  clamp  phandles')
+    print('\nentry  node-vmax  entry-cap  clamp  rtp  scenes  phandles')
+    t_rtp = t_sc = 0
     for i, st, f in stats_all:
-        print('%5d  %9s  %9s  %5d  %s' % (i, '0x' + str(st['vmax']), hex(st['cap']),
-                                          st['clamped'],
-                                          ','.join('0x%x' % p for p in st['ph'])))
+        t_rtp += st.get('rtp_added', 0)
+        t_sc += st.get('scenes_added', 0)
+        print('%5d  %9s  %9s  %5d  %3d  %6d  %s'
+              % (i, '0x' + str(st['vmax']), hex(st['cap']), st['clamped'],
+                 st.get('rtp_added', 0), st.get('scenes_added', 0),
+                 ','.join('0x%x' % p for p in st['ph'])))
+    print('total: %d waveform blocks wired from iQOO 13, %d scene ids filled'
+          % (t_rtp, t_sc))
     if not a.compare:
         return
     print('\nCOMPARE against %s' % a.compare)
