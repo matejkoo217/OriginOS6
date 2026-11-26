@@ -17,10 +17,13 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/fs.h>
+#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/kernfs.h>
 #include <linux/kobject.h>
 #include <linux/module.h>
+#include <linux/mm.h>
+#include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/sysfs.h>
@@ -74,7 +77,13 @@ static int read_node_all(const char *path, char **out, size_t *out_len)
 	f = filp_open(path, O_RDONLY, 0);
 	if (IS_ERR(f))
 		return -ENOENT;
-	buf = kmalloc(cap, GFP_KERNEL);
+	/*
+	 * kvmalloc, not kmalloc: 16 KiB is an order-2 GFP_KERNEL request and
+	 * this runs on every read of a node.  With the page allocator fragmented 
+	 * that used to fail (kmalloc_order -> io_sum_show) and hand the OOM killer
+	 * a background process. A vmalloc fallback can always serve it.
+	 */
+	buf = kvmalloc(cap, GFP_KERNEL);
 	if (!buf) {
 		filp_close(f, NULL);
 		return -ENOMEM;
@@ -83,9 +92,9 @@ static int read_node_all(const char *path, char **out, size_t *out_len)
 		if (len >= cap - 1) {
 			if (cap >= DISKSTATS_MAX)
 				break;
-			nb = krealloc(buf, cap * 2, GFP_KERNEL);
+			nb = kvrealloc(buf, cap, cap * 2, GFP_KERNEL);
 			if (!nb) {
-				kfree(buf);
+				kvfree(buf);
 				filp_close(f, NULL);
 				return -ENOMEM;
 			}
@@ -95,7 +104,7 @@ static int read_node_all(const char *path, char **out, size_t *out_len)
 		n = kernel_read(f, buf + len, cap - 1 - len, &pos);
 		if (n < 0) {
 			if (!len) {
-				kfree(buf);
+				kvfree(buf);
 				filp_close(f, NULL);
 				return (int)n;
 			}
@@ -336,7 +345,7 @@ static int diskstats_io_sum(u64 *sect_read, u64 *sect_written)
 			break;
 		p = nl + 1;
 	}
-	kfree(buf);
+	kvfree(buf);
 	return lines ? 0 : -ENODATA;
 }
 static int ufs_health_pct(void)
@@ -374,16 +383,42 @@ static ssize_t ufsid_show(struct kobject *kobj, struct kobj_attribute *attr, cha
 	return sysfs_emit(buf, "%s\n", id);
 }
 static struct kobj_attribute ufsid_attr = __ATTR_RO(ufsid);
+
+/*
+ * io_sum is a pair of monotonic counters that com.vivo.pie polls.  Every read
+ * used to open+read+parse the whole of /proc/diskstats (and allocate 16 KiB to
+ * do it), which is what made this node an OOM trigger. Cache the sums for a
+ * second: a counter is never wrong, only up to 1 s old.
+ */
+#define IO_SUM_TTL_MS	1000
+static DEFINE_MUTEX(io_sum_lock);
+static u64 io_sum_rd, io_sum_wr;
+static unsigned long io_sum_exp;
+static bool io_sum_valid;
 static ssize_t io_sum_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	u64 rd = 0, wr = 0;
-	if (diskstats_io_sum(&rd, &wr))
+	u64 rd, wr;
+	bool ok;
+	mutex_lock(&io_sum_lock);
+	if (!io_sum_valid || time_after(jiffies, io_sum_exp)) {
+		u64 nrd = 0, nwr = 0;
+		if (!diskstats_io_sum(&nrd, &nwr)) {
+			io_sum_rd = nrd;
+			io_sum_wr = nwr;
+			io_sum_valid = true;
+			io_sum_exp = jiffies + msecs_to_jiffies(IO_SUM_TTL_MS);
+		}
+	}
+	rd = io_sum_rd;
+	wr = io_sum_wr;
+	ok = io_sum_valid;
+	mutex_unlock(&io_sum_lock);
+	if (!ok)
 		return sysfs_emit(buf, "0 0\n");
 	return sysfs_emit(buf, "%llu %llu\n", rd, wr);
 }
 static struct kobj_attribute io_sum_attr = __ATTR_RO(io_sum);
-static ssize_t nand_info_dec_show(struct kobject *kobj,
-				  struct kobj_attribute *attr, char *buf)
+static ssize_t nand_info_dec_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	char model[64] = "", serial[64] = "", spec[32];
 	unsigned int manfid = 0, date = 0, specv = 0, luns = 0, qd = 0;
